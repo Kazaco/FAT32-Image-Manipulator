@@ -1,0 +1,13 @@
+Hexedit (linprog uses Little Endian - 2A 3B 91 23 -> 0x23913B2A)
+-----------
+hexedit --color fat32.img
+F1 - Help manual page
+F4 - Jump to newline
+Ctrl-C - Exit
+
+Mounting FAT32 (has to work mounted/unmounted, can't mount on linprog)
+-------------------
+mkdir -p mnt_pnt
+sudo mount -o loop /path/to/image mnt_pnt
+cd mnt_pnt
+sudo umount mnt_pnt

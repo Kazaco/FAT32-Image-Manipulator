@@ -1,6 +1,7 @@
 #include <stdio.h> 		//printf()
 #include <stdlib.h>     //free(), realloc()
 #include <string.h>     //strchr(), memcpy()
+#include <fcntl.h>      //O_RDONLY
 
 typedef struct {
 	int size;
@@ -65,6 +66,19 @@ void running(const char * imgFile)
         else if(strcmp("info", tokens->items[0]) == 0 && tokens->size == 1)
         {
             printf("Info\n");
+
+            //Open the file, we already checked that it exists. Obtain the file descriptor
+			int file = open(imgFile, O_RDONLY);
+
+            unsigned char arr[100];
+            read(file, arr, 100);
+            int i = 0;
+            for(i; i < 100; i++)
+            {
+                printf("%x", arr[i]);
+            }
+            printf("\n");
+            close(file);
         }
         else if(strcmp("size", tokens->items[0]) == 0 && tokens->size == 2)
         {

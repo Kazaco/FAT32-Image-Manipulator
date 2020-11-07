@@ -126,6 +126,15 @@ char * readHexToString(const char * imgFile, int decStart, int size)
         printf("%02x ", bitArr[i]);
     }
     printf("\n");
+
+    //Little Endian Fix
+    int j = size - 1;
+    for(j; j >= 0; j--)
+    {
+        printf("%02x ", bitArr[j]);
+    }
+    printf("\n");
+
     close(file);
     //int number = (int)strtol(str, NULL, 16);
     free(bitArr);

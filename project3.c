@@ -8,6 +8,16 @@ typedef struct {
 	char **items;
 } tokenlist;
 
+typedef struct {
+    unsigned int BytsPerSec;    //Bytes per sector
+    unsigned int SecPerClus;    //Sectors per cluster
+    unsigned int RsvdSecCnt;    //Reserved  region size
+    unsigned int NumFATs;       //Number of FATs
+    unsigned int FATSz32;       //FAT size
+    unsigned int RootClus;      //Root cluster
+    unsigned int TotSec32;      //Total sectors
+} BPB;
+
 char *get_input(void);
 tokenlist *get_tokens(char *input);
 tokenlist *new_tokenlist(void);
@@ -16,6 +26,7 @@ void free_tokens(tokenlist *tokens);
 ////////////////////////////////////
 int file_exists(const char * filename);
 void running(const char * imgFile);
+char * readHexToString(const char * imgFile, int decStart, int size);
 
 int main(int argc, char *argv[])
 {
@@ -66,23 +77,25 @@ void running(const char * imgFile)
         else if(strcmp("info", tokens->items[0]) == 0 && tokens->size == 1)
         {
             printf("Info\n");
-
-            //Open the file, we already checked that it exists. Obtain the file descriptor
-			int file = open(imgFile, O_RDONLY);
-
-            unsigned char arr[100];
-            read(file, arr, 100);
-            int i = 0;
-            for(i; i < 100; i++)
-            {
-                printf("%x", arr[i]);
-            }
-            printf("\n");
-            close(file);
+            //Calculate size for BytsPerSec
+            char * result = readHexToString(imgFile, 11, 2);
         }
         else if(strcmp("size", tokens->items[0]) == 0 && tokens->size == 2)
         {
             printf("Size\n");
+            //Open the file, we already checked that it exists. Obtain the file descriptor
+			// int file = open(imgFile, O_RDONLY);
+            // int offset = lseek(file, 17008, SEEK_SET);
+
+            // unsigned char arr[16];
+            // read(file, arr, 16);
+            // int i = 0;
+            // for(i; i < 16; i++)
+            // {
+            //     printf("%x ", arr[i]);
+            // }
+            // printf("\n");
+            // close(file);
         }
         else
         {
@@ -91,6 +104,33 @@ void running(const char * imgFile)
         free(input);
         free_tokens(tokens);
     }
+}
+
+char * readHexToString(const char * imgFile, int decStart, int size)
+{
+    unsigned char * bitArr = malloc(size);
+    char * returnStr;
+
+    //Open the file, we already checked that it exists. Obtain the file descriptor
+	int file = open(imgFile, O_RDONLY);
+
+    //Go to offset position in file. ~SEEK_SET = Absolute position in document.
+    int offset = lseek(file, decStart, SEEK_SET);
+    printf("%d\n", offset);
+    //Read from the file 'size' number of bits from decimal position given.
+    int i = 0;
+    read(file, bitArr, size);
+    for(i; i < size; i++)
+    {
+        //Need a to reinsert a leading zero.
+        printf("%02x ", bitArr[i]);
+    }
+    printf("\n");
+    close(file);
+    //int number = (int)strtol(str, NULL, 16);
+    free(bitArr);
+
+    return "result";
 }
 
 //Function that attempts to open specified file and returns 1 if successful

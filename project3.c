@@ -8,16 +8,17 @@ typedef struct {
 	char **items;
 } tokenlist;
 
-typedef struct {
+struct BIOS_Param_Block {
     unsigned int BytsPerSec;    //Bytes per sector
     unsigned int SecPerClus;    //Sectors per cluster
     unsigned int RsvdSecCnt;    //Reserved  region size
     unsigned int NumFATs;       //Number of FATs
+    unsigned int TotSec32;      //Total sectors
     unsigned int FATSz32;       //FAT size
     unsigned int RootClus;      //Root cluster
-    unsigned int TotSec32;      //Total sectors
 } BPB;
 
+///////////////////////////////////
 char *get_input(void);
 tokenlist *get_tokens(char *input);
 tokenlist *new_tokenlist(void);
@@ -26,7 +27,9 @@ void free_tokens(tokenlist *tokens);
 ////////////////////////////////////
 int file_exists(const char * filename);
 void running(const char * imgFile);
-char * readHexToString(const char * imgFile, int decStart, int size);
+tokenlist * getHex(const char * imgFile, int decStart, int size);
+char * littleEndianHexString(tokenlist * hex);
+////////////////////////////////////
 
 int main(int argc, char *argv[])
 {
@@ -76,26 +79,76 @@ void running(const char * imgFile)
         }
         else if(strcmp("info", tokens->items[0]) == 0 && tokens->size == 1)
         {
-            printf("Info\n");
-            //Calculate size for BytsPerSec
-            char * result = readHexToString(imgFile, 11, 2);
+            printf("=== Info ===\n");
+            tokenlist * hex;
+            char * littleEndian;
+
+            //Calculate Bytes Per Sector
+            hex = getHex(imgFile, 11, 2);
+            littleEndian = littleEndianHexString(hex);
+            BPB.BytsPerSec = (unsigned int)strtol(littleEndian, NULL, 16);
+            printf("Bytes Per Sector: %d\n", BPB.BytsPerSec);
+            free_tokens(hex);
+            free(littleEndian);
+            printf("=======\n");
+
+            //Calculate Sectors per Cluster
+            hex = getHex(imgFile, 13, 1);
+            littleEndian = littleEndianHexString(hex);
+            BPB.SecPerClus = (unsigned int)strtol(littleEndian, NULL, 16);
+            printf("Sectors per Cluster: %d\n", BPB.SecPerClus);
+            free_tokens(hex);
+            free(littleEndian);
+            printf("=======\n");
+
+            //Calculate Reserved Sector Count
+            hex = getHex(imgFile, 14, 2);
+            littleEndian = littleEndianHexString(hex);
+            BPB.RsvdSecCnt = (unsigned int)strtol(littleEndian, NULL, 16);
+            printf("Reserved Sector Count: %d\n", BPB.RsvdSecCnt);
+            free_tokens(hex);
+            free(littleEndian);
+            printf("=======\n");
+
+            //Calculate number of FATs
+            hex = getHex(imgFile, 16, 1);
+            littleEndian = littleEndianHexString(hex);
+            BPB.NumFATs = (unsigned int)strtol(littleEndian, NULL, 16);
+            printf("Number of FATs: %d\n", BPB.NumFATs);
+            free_tokens(hex);
+            free(littleEndian);
+            printf("=======\n");
+
+            //Calculate total sectors
+            hex = getHex(imgFile, 32, 4);
+            littleEndian = littleEndianHexString(hex);
+            BPB.TotSec32 = (unsigned int)strtol(littleEndian, NULL, 16);
+            printf("Total Sectors: %d\n", BPB.TotSec32);
+            free_tokens(hex);
+            free(littleEndian);
+            printf("=======\n");
+
+            //Calculate FAT size
+            hex = getHex(imgFile, 36, 4);
+            littleEndian = littleEndianHexString(hex);
+            BPB.FATSz32 = (unsigned int)strtol(littleEndian, NULL, 16);
+            printf("FAT size: %d\n", BPB.FATSz32);
+            free_tokens(hex);
+            free(littleEndian);
+            printf("=======\n");
+
+            //Calculate Root Cluster
+            hex = getHex(imgFile, 44, 4);
+            littleEndian = littleEndianHexString(hex);
+            BPB.RootClus = (unsigned int)strtol(littleEndian, NULL, 16);
+            printf("Root Cluster: %d\n", BPB.RootClus);
+            free_tokens(hex);
+            free(littleEndian);
+            printf("=======\n");
         }
         else if(strcmp("size", tokens->items[0]) == 0 && tokens->size == 2)
         {
             printf("Size\n");
-            //Open the file, we already checked that it exists. Obtain the file descriptor
-			// int file = open(imgFile, O_RDONLY);
-            // int offset = lseek(file, 17008, SEEK_SET);
-
-            // unsigned char arr[16];
-            // read(file, arr, 16);
-            // int i = 0;
-            // for(i; i < 16; i++)
-            // {
-            //     printf("%x ", arr[i]);
-            // }
-            // printf("\n");
-            // close(file);
         }
         else
         {
@@ -106,40 +159,51 @@ void running(const char * imgFile)
     }
 }
 
-char * readHexToString(const char * imgFile, int decStart, int size)
+tokenlist * getHex(const char * imgFile, int decStart, int size)
 {
-    unsigned char * bitArr = malloc(size);
-    char * returnStr;
+    printf("getHex()\n");
+    //C-String of Bit Values and Token List of Hex Values.
+    unsigned char * bitArr = (unsigned char *) malloc(sizeof(unsigned char) * size);
+    tokenlist * hex = new_tokenlist();
 
     //Open the file, we already checked that it exists. Obtain the file descriptor
-	int file = open(imgFile, O_RDONLY);
-
+    int file = open(imgFile, O_RDONLY);
     //Go to offset position in file. ~SEEK_SET = Absolute position in document.
-    int offset = lseek(file, decStart, SEEK_SET);
-    printf("%d\n", offset);
+    lseek(file, decStart, SEEK_SET);
     //Read from the file 'size' number of bits from decimal position given.
+    //We'll convert those bit values into hex, and insert into our hex token list.
     int i = 0;
+    char buffer[3];
     read(file, bitArr, size);
     for(i; i < size; i++)
     {
-        //Need a to reinsert a leading zero.
-        printf("%02x ", bitArr[i]);
+        //Create hex string using input. Size should always be 3
+        //for 2 bits and 1 null character. 
+        snprintf(buffer, 3, "%02x", bitArr[i]);
+        printf("%s ", buffer);
+        add_token(hex, buffer);
     }
     printf("\n");
-
-    //Little Endian Fix
-    int j = size - 1;
-    for(j; j >= 0; j--)
-    {
-        printf("%02x ", bitArr[j]);
-    }
-    printf("\n");
-
+    //Close working file and deallocate working array.
     close(file);
-    //int number = (int)strtol(str, NULL, 16);
     free(bitArr);
+    //Tokenlist of hex values.
+    return hex;
+}
 
-    return "result";
+char * littleEndianHexString(tokenlist * hex)
+{
+    printf("littleEndianHexString()\n");
+    //Allocate 2 * hex->size since we store 2 hexes at each item
+    char * littleEndian = (char *) malloc(sizeof(char) * hex->size * 2);
+    //Little Endian = Reading Backwards by 2
+    int end = hex->size - 1;
+    for(end; end >= 0; end--)
+    {
+        strcat(littleEndian, hex->items[end]);
+    }
+    printf("%s\n\n", littleEndian);
+    return littleEndian;
 }
 
 //Function that attempts to open specified file and returns 1 if successful

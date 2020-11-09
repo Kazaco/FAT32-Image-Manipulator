@@ -29,6 +29,7 @@ int file_exists(const char * filename);
 void running(const char * imgFile);
 tokenlist * getHex(const char * imgFile, int decStart, int size);
 char * littleEndianHexString(tokenlist * hex);
+void getBIOSParamBlock(const char * imgFile);
 ////////////////////////////////////
 
 int main(int argc, char *argv[])
@@ -57,6 +58,9 @@ int main(int argc, char *argv[])
 //Let User run commands on given .img file
 void running(const char * imgFile)
 {
+    //Get BIOS INFO before moving around disk.
+    getBIOSParamBlock(imgFile);
+    printf("=== FAT32 File System ===\n");
     while(1)
     {
         //User Initial Input
@@ -67,7 +71,7 @@ void running(const char * imgFile)
         int i = 0;
         for (i; i < tokens->size; i++) 
         {
-            printf("token %d: (%s)\n", i, tokens->items[i]);
+            //printf("token %d: (%s)\n", i, tokens->items[i]);
         }
 
         //Commands
@@ -80,71 +84,13 @@ void running(const char * imgFile)
         else if(strcmp("info", tokens->items[0]) == 0 && tokens->size == 1)
         {
             printf("=== Info ===\n");
-            tokenlist * hex;
-            char * littleEndian;
-
-            //Calculate Bytes Per Sector
-            hex = getHex(imgFile, 11, 2);
-            littleEndian = littleEndianHexString(hex);
-            BPB.BytsPerSec = (unsigned int)strtol(littleEndian, NULL, 16);
             printf("Bytes Per Sector: %d\n", BPB.BytsPerSec);
-            free_tokens(hex);
-            free(littleEndian);
-            printf("=======\n");
-
-            //Calculate Sectors per Cluster
-            hex = getHex(imgFile, 13, 1);
-            littleEndian = littleEndianHexString(hex);
-            BPB.SecPerClus = (unsigned int)strtol(littleEndian, NULL, 16);
             printf("Sectors per Cluster: %d\n", BPB.SecPerClus);
-            free_tokens(hex);
-            free(littleEndian);
-            printf("=======\n");
-
-            //Calculate Reserved Sector Count
-            hex = getHex(imgFile, 14, 2);
-            littleEndian = littleEndianHexString(hex);
-            BPB.RsvdSecCnt = (unsigned int)strtol(littleEndian, NULL, 16);
             printf("Reserved Sector Count: %d\n", BPB.RsvdSecCnt);
-            free_tokens(hex);
-            free(littleEndian);
-            printf("=======\n");
-
-            //Calculate number of FATs
-            hex = getHex(imgFile, 16, 1);
-            littleEndian = littleEndianHexString(hex);
-            BPB.NumFATs = (unsigned int)strtol(littleEndian, NULL, 16);
             printf("Number of FATs: %d\n", BPB.NumFATs);
-            free_tokens(hex);
-            free(littleEndian);
-            printf("=======\n");
-
-            //Calculate total sectors
-            hex = getHex(imgFile, 32, 4);
-            littleEndian = littleEndianHexString(hex);
-            BPB.TotSec32 = (unsigned int)strtol(littleEndian, NULL, 16);
             printf("Total Sectors: %d\n", BPB.TotSec32);
-            free_tokens(hex);
-            free(littleEndian);
-            printf("=======\n");
-
-            //Calculate FAT size
-            hex = getHex(imgFile, 36, 4);
-            littleEndian = littleEndianHexString(hex);
-            BPB.FATSz32 = (unsigned int)strtol(littleEndian, NULL, 16);
             printf("FAT size: %d\n", BPB.FATSz32);
-            free_tokens(hex);
-            free(littleEndian);
-            printf("=======\n");
-
-            //Calculate Root Cluster
-            hex = getHex(imgFile, 44, 4);
-            littleEndian = littleEndianHexString(hex);
-            BPB.RootClus = (unsigned int)strtol(littleEndian, NULL, 16);
             printf("Root Cluster: %d\n", BPB.RootClus);
-            free_tokens(hex);
-            free(littleEndian);
-            printf("=======\n");
         }
         else if(strcmp("size", tokens->items[0]) == 0 && tokens->size == 2)
         {
@@ -204,6 +150,75 @@ char * littleEndianHexString(tokenlist * hex)
     }
     printf("%s\n\n", littleEndian);
     return littleEndian;
+}
+
+void getBIOSParamBlock(const char * imgFile)
+{
+    printf("=== Info ===\n");
+    tokenlist * hex;
+    char * littleEndian;
+
+    //Calculate Bytes Per Sector
+    hex = getHex(imgFile, 11, 2);
+    littleEndian = littleEndianHexString(hex);
+    BPB.BytsPerSec = (unsigned int)strtol(littleEndian, NULL, 16);
+    printf("Bytes Per Sector: %d\n", BPB.BytsPerSec);
+    free_tokens(hex);
+    free(littleEndian);
+    printf("=======\n");
+
+    //Calculate Sectors per Cluster
+    hex = getHex(imgFile, 13, 1);
+    littleEndian = littleEndianHexString(hex);
+    BPB.SecPerClus = (unsigned int)strtol(littleEndian, NULL, 16);
+    printf("Sectors per Cluster: %d\n", BPB.SecPerClus);
+    free_tokens(hex);
+    free(littleEndian);
+    printf("=======\n");
+
+    //Calculate Reserved Sector Count
+    hex = getHex(imgFile, 14, 2);
+    littleEndian = littleEndianHexString(hex);
+    BPB.RsvdSecCnt = (unsigned int)strtol(littleEndian, NULL, 16);
+    printf("Reserved Sector Count: %d\n", BPB.RsvdSecCnt);
+    free_tokens(hex);
+    free(littleEndian);
+    printf("=======\n");
+
+    //Calculate number of FATs
+    hex = getHex(imgFile, 16, 1);
+    littleEndian = littleEndianHexString(hex);
+    BPB.NumFATs = (unsigned int)strtol(littleEndian, NULL, 16);
+    printf("Number of FATs: %d\n", BPB.NumFATs);
+    free_tokens(hex);
+    free(littleEndian);
+    printf("=======\n");
+
+    //Calculate total sectors
+    hex = getHex(imgFile, 32, 4);
+    littleEndian = littleEndianHexString(hex);
+    BPB.TotSec32 = (unsigned int)strtol(littleEndian, NULL, 16);
+    printf("Total Sectors: %d\n", BPB.TotSec32);
+    free_tokens(hex);
+    free(littleEndian);
+    printf("=======\n");
+
+    //Calculate FAT size
+    hex = getHex(imgFile, 36, 4);
+    littleEndian = littleEndianHexString(hex);
+    BPB.FATSz32 = (unsigned int)strtol(littleEndian, NULL, 16);
+    printf("FAT size: %d\n", BPB.FATSz32);
+    free_tokens(hex);
+    free(littleEndian);
+    printf("=======\n");
+
+    //Calculate Root Cluster
+    hex = getHex(imgFile, 44, 4);
+    littleEndian = littleEndianHexString(hex);
+    BPB.RootClus = (unsigned int)strtol(littleEndian, NULL, 16);
+    printf("Root Cluster: %d\n", BPB.RootClus);
+    free_tokens(hex);
+    free(littleEndian);
 }
 
 //Function that attempts to open specified file and returns 1 if successful

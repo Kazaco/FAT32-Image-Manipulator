@@ -2,6 +2,7 @@
 #include <stdlib.h>     //free(), realloc()
 #include <string.h>     //strchr(), memcpy()
 #include <fcntl.h>      //O_RDONLY
+#include <unistd.h>     //lseek
 
 typedef struct {
 	int size;
@@ -18,6 +19,23 @@ struct BIOS_Param_Block {
     unsigned int RootClus;      //Root cluster
 } BPB;
 
+struct DIRENTRY{
+unsigned char DIR_Name[11];
+unsigned char DIR_Attr;
+unsigned char DIR_NTRes;
+unsigned char DIR_CrtTimeTenth;
+unsigned char DIR_CrtTime[2];
+unsigned char DIR_CrtDate[2];
+unsigned char DIR_LstAccDate[2];
+unsigned char DIR_FstClusHI[2];
+unsigned char DIR_WrtTime[2];
+unsigned char DIR_WrtDate[2];
+unsigned char DIR_FstClusLO[2];
+unsigned char DIR_FileSize[4];
+} __attribute__((packed));
+typedef struct DIRENTRY DIRENTRY;
+int DIR_size = 0;
+
 ///////////////////////////////////
 char *get_input(void);
 tokenlist *get_tokens(char *input);
@@ -29,7 +47,9 @@ int file_exists(const char * filename);
 void running(const char * imgFile);
 tokenlist * getHex(const char * imgFile, int decStart, int size);
 char * littleEndianHexString(tokenlist * hex);
+char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
+DIRENTRY ** getDirectoryList(const char * imgFile, unsigned int N);
 ////////////////////////////////////
 
 int main(int argc, char *argv[])
@@ -60,6 +80,8 @@ void running(const char * imgFile)
 {
     //Get BIOS INFO before moving around disk.
     getBIOSParamBlock(imgFile);
+    //Make the User Start in the Root
+    struct DIRENTRY ** currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
     printf("=== FAT32 File System ===\n");
     while(1)
     {
@@ -79,6 +101,7 @@ void running(const char * imgFile)
         {
             printf("Exit\n");
             free(input);
+            free(currentDirectory);
             break;
         }
         else if(strcmp("info", tokens->items[0]) == 0 && tokens->size == 1)
@@ -96,6 +119,24 @@ void running(const char * imgFile)
         {
             printf("Size\n");
         }
+        else if(strcmp("ls", tokens->items[0]) == 0 && (tokens->size == 1 || tokens->size == 2) )
+        {
+            //Check Current Directory
+            if(tokens->size == 1)
+            {
+                // struct DIRLIST entry;
+                printf("List Current\n");
+                struct DIRENTRY ** readEntry = getDirectoryList(imgFile, 3);
+                free(readEntry);
+            }
+            //Check DIRNAME
+            else
+            {
+                printf("List DIRNAME\n");
+                struct DIRENTRY ** readEntry = getDirectoryList(imgFile, BPB.RootClus);
+                free(readEntry);
+            }
+        }
         else
         {
             printf("Invalid Command Given\n");
@@ -103,6 +144,83 @@ void running(const char * imgFile)
         free(input);
         free_tokens(tokens);
     }
+}
+
+DIRENTRY ** getDirectoryList(const char * imgFile, unsigned int N)
+{
+    //We do not need to create .. entry
+    if(N == BPB.RootClus)
+    {
+        printf("ROOT!\n");
+    }
+
+    //Beginning Locations for FAT and Data Sectors
+    unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+    unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+    //Offset Location for N in FAT (Root = 2, 16392)
+    FatSector += N * 4;
+    //Offset Location for N in Data (Root = 2, 1049600)
+    DataSector += (N - 2) * 4;
+    //Ending Vals
+    unsigned int FatSectorEndianVal = 0;
+    unsigned int DataSectorEndianVal = 0;
+    tokenlist * hex;
+    struct DIRENTRY ** directorys = malloc(DIR_size * sizeof(DIRENTRY)); //Size 0?
+    char * littleEndian;
+    char * bigEndian;
+
+    do
+    {
+        //Read the FAT until we are at the end of the chosen cluster (N). This will tell us
+        //the data sectors we should go to in the data region of sector size 512.
+
+        //We have already positioned ourselves in the *first* position with previous math.
+        printf("FAT Sector Start: %i\n", FatSector);
+
+        //Read Hex at FatSector Position
+        hex = getHex(imgFile, FatSector, 4);
+        //Obtain Endian string, so we can determine if this is the last time we should read
+        //from the FAT and search the data region.
+        littleEndian = littleEndianHexString(hex);
+        FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
+        //Deallocate hex and little Endian for FAT portion
+        free_tokens(hex);
+        free(littleEndian);
+        
+        //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
+        if((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0)
+        {
+            //We have to loop again, set up next FAT value we should read.
+            printf("We get to loop again!\n");
+            FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec + FatSectorEndianVal * 4;
+        }
+        else
+        {
+            //This should be our last iteration.
+            printf("Last Time!\n");
+        }
+
+        //Read the Data Region
+        printf("Data Sector Start: %i\n", DataSector);
+        
+        //Read Hex in at Data Sector Position. Track size of directorys with global variable.
+        DIR_size += 1;
+        // directorys = realloc(directorys, DIR_size * sizeof(DIRENTRY));
+
+        // //Open the file, we already checked that it exists. Obtain the file descriptor
+        // int file = open(imgFile, O_RDONLY);
+        // //Go to offset position in file. ~SEEK_SET = Absolute position in document.
+        // lseek(file, DataSector, SEEK_SET);
+        // //Read from the file 'size' number of bits from decimal position given.
+        // //We'll convert those bit values into hex, and insert into our hex token list.
+        // read(file, directorys[0], 32);
+
+
+        //hex = getHex(imgFile, FatSector, 512);
+
+    } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
+    
+    return directorys;
 }
 
 tokenlist * getHex(const char * imgFile, int decStart, int size)
@@ -150,6 +268,21 @@ char * littleEndianHexString(tokenlist * hex)
     }
     printf("%s\n\n", littleEndian);
     return littleEndian;
+}
+
+char * bigEndianHexString(tokenlist * hex)
+{
+    printf("bigEndianHexString()\n");
+    //Allocate 2 * hex->size since we store 2 hexes at each item
+    char * bigEndian = (char *) malloc(sizeof(char) * hex->size * 2);
+    //Little Endian = Reading Backwards by 2
+    int begin = 0;
+    for(begin; begin < hex->size; begin++)
+    {
+        strcat(bigEndian, hex->items[begin]);
+    }
+    printf("%s\n\n", bigEndian);
+    return bigEndian;
 }
 
 void getBIOSParamBlock(const char * imgFile)
@@ -305,7 +438,8 @@ void free_tokens(tokenlist *tokens)
 {
 	int i = 0;
 	for (i; i < tokens->size; i++)
-		free(tokens->items[i]);
+        free(tokens->items[i]);
 
 	free(tokens);
 }
+

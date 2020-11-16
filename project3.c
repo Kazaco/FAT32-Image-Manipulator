@@ -20,7 +20,7 @@ struct BIOS_Param_Block {
 } BPB;
 
 struct DIRENTRY{
-unsigned char DIR_Name[11];
+char DIR_Name[11];
 unsigned char DIR_Attr;
 unsigned char DIR_NTRes;
 unsigned char DIR_CrtTimeTenth;
@@ -34,7 +34,11 @@ unsigned char DIR_FstClusLO[2];
 unsigned char DIR_FileSize[4];
 } __attribute__((packed));
 typedef struct DIRENTRY DIRENTRY;
-int DIR_size = 0;
+
+typedef struct {
+	int size;
+	DIRENTRY **items;
+} dirlist;
 
 ///////////////////////////////////
 char *get_input(void);
@@ -43,13 +47,17 @@ tokenlist *new_tokenlist(void);
 void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
 ////////////////////////////////////
+dirlist *new_dirlist(void);
+void add_directory(dirlist * directories, DIRENTRY *item);
+void free_dirlist(dirlist * directories);
+////////////////////////////////////
 int file_exists(const char * filename);
 void running(const char * imgFile);
 tokenlist * getHex(const char * imgFile, int decStart, int size);
 char * littleEndianHexString(tokenlist * hex);
 char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
-DIRENTRY ** getDirectoryList(const char * imgFile, unsigned int N);
+dirlist * getDirectoryList(const char * imgFile, unsigned int N);
 ////////////////////////////////////
 
 int main(int argc, char *argv[])
@@ -81,7 +89,7 @@ void running(const char * imgFile)
     //Get BIOS INFO before moving around disk.
     getBIOSParamBlock(imgFile);
     //Make the User Start in the Root
-    struct DIRENTRY ** currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+    dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
     printf("=== FAT32 File System ===\n");
     while(1)
     {
@@ -101,7 +109,6 @@ void running(const char * imgFile)
         {
             printf("Exit\n");
             free(input);
-            free(currentDirectory);
             break;
         }
         else if(strcmp("info", tokens->items[0]) == 0 && tokens->size == 1)
@@ -126,15 +133,13 @@ void running(const char * imgFile)
             {
                 // struct DIRLIST entry;
                 printf("List Current\n");
-                struct DIRENTRY ** readEntry = getDirectoryList(imgFile, 3);
-                free(readEntry);
+                dirlist * readEntry = getDirectoryList(imgFile, 3);
             }
             //Check DIRNAME
             else
             {
                 printf("List DIRNAME\n");
-                struct DIRENTRY ** readEntry = getDirectoryList(imgFile, BPB.RootClus);
-                free(readEntry);
+                dirlist * readEntry = getDirectoryList(imgFile, BPB.RootClus);
             }
         }
         else
@@ -146,7 +151,7 @@ void running(const char * imgFile)
     }
 }
 
-DIRENTRY ** getDirectoryList(const char * imgFile, unsigned int N)
+dirlist * getDirectoryList(const char * imgFile, unsigned int N)
 {
     //We do not need to create .. entry
     if(N == BPB.RootClus)
@@ -165,7 +170,6 @@ DIRENTRY ** getDirectoryList(const char * imgFile, unsigned int N)
     unsigned int FatSectorEndianVal = 0;
     unsigned int DataSectorEndianVal = 0;
     tokenlist * hex;
-    struct DIRENTRY ** directorys = malloc(DIR_size * sizeof(DIRENTRY)); //Size 0?
     char * littleEndian;
     char * bigEndian;
 
@@ -202,9 +206,8 @@ DIRENTRY ** getDirectoryList(const char * imgFile, unsigned int N)
 
         //Read the Data Region
         printf("Data Sector Start: %i\n", DataSector);
-        
+
         //Read Hex in at Data Sector Position. Track size of directorys with global variable.
-        DIR_size += 1;
         // directorys = realloc(directorys, DIR_size * sizeof(DIRENTRY));
 
         // //Open the file, we already checked that it exists. Obtain the file descriptor
@@ -220,7 +223,25 @@ DIRENTRY ** getDirectoryList(const char * imgFile, unsigned int N)
 
     } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
     
-    return directorys;
+    //Create structure for Directory List
+    dirlist * dirs = new_dirlist();
+    DIRENTRY * newEntry = malloc(sizeof(DIRENTRY));
+    strcpy(newEntry->DIR_Name, "Test");
+    dirs->items = (DIRENTRY **) realloc(dirs->items, (dirs->size + 1) * sizeof(DIRENTRY*));
+    memcpy(dirs->items[dirs->size], newEntry, sizeof(DIRENTRY*));
+    dirs->size += 1;
+    free(newEntry);
+    printf("%s", dirs->items[0]->DIR_Name);
+
+    return dirs;
+}
+
+dirlist *new_dirlist(void)
+{
+    dirlist * dirs = (dirlist *) malloc(sizeof(dirlist));
+	dirs->size = 0;
+	dirs->items = (DIRENTRY **) malloc(sizeof(DIRENTRY *));
+	return dirs;
 }
 
 tokenlist * getHex(const char * imgFile, int decStart, int size)
@@ -365,6 +386,18 @@ int file_exists(const char * filename)
     }
     return 0;
 }
+//////////////////////////////////////////////////////
+// Directory List Logic //////////////
+//////////////////////////////////////////////////////
+
+
+// void free_dirlist(dirlist * directories)
+// {
+//     int i = 0;
+// 	for (i; i < directories->size; i++)
+//         free(directories->items[i]);
+// 	free(directories);
+// }
 
 //////////////////////////////////////////////////////
 // Parsing Input: Taken from Project #1 //////////////

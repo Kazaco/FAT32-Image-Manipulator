@@ -127,7 +127,30 @@ void running(const char * imgFile)
         }
         else if(strcmp("size", tokens->items[0]) == 0 && tokens->size == 2)
         {
-            printf("Size\n");
+            int found = 0;
+            int i = 0;
+            for(i; i < currentDirectory->size; i++)
+            {
+                //Compare only up to only strlen(tokens->items[1]) b/c there will be spaces left from
+                //reading it directly from the .img file. 
+                if(strncmp(currentDirectory->items[i]->DIR_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
+                {
+                    //Only let the user find size of files
+                    if(currentDirectory->items[i]->DIR_Attr == 32)
+                    {
+                        char * sizeStr = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FileSize, 4);
+                        unsigned int fileSize = (unsigned int)strtol(sizeStr, NULL, 16);
+                        printf("File %s: %i bytes\n", tokens->items[1], fileSize);
+                        free(sizeStr);
+                        found = 1;
+                    }
+                }
+            }
+
+            if(found == 0)
+            {
+                printf("File not found.\n");
+            }
         }
         else if(strcmp("ls", tokens->items[0]) == 0 && (tokens->size == 1 || tokens->size == 2) )
         {
@@ -150,26 +173,19 @@ void running(const char * imgFile)
                     if(strncmp(currentDirectory->items[i]->DIR_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
                     {
                         //Only let the user ls directories
-                        if(currentDirectory->items[i]->DIR_Attr == 16 || currentDirectory->items[i]->DIR_Attr == 32)
+                        if(currentDirectory->items[i]->DIR_Attr == 16)
                         {
-                            if(currentDirectory->items[i]->DIR_Attr == 16)
-                            {
-                                char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusHI, 2);
-                                char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusLO, 2);
-                                unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
-                                unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
-                                dirlist * lsDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
-                                readDirectories(lsDirectory);
-                                free(clusterHI);
-                                free(clusterLOW);
-                                free_dirlist(lsDirectory);
-                                found = 1;
-                                break;
-                            }
-                            else
-                            {
-                                //FILE w/ name, not directory!
-                            }
+                            char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusHI, 2);
+                            char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusLO, 2);
+                            unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                            unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                            dirlist * lsDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+                            readDirectories(lsDirectory);
+                            free(clusterHI);
+                            free(clusterLOW);
+                            free_dirlist(lsDirectory);
+                            found = 1;
+                            break;
                         }
                     }
                     else

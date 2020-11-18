@@ -180,7 +180,7 @@ void running(const char * imgFile)
 
                 if(found == 0)
                 {
-                    printf("> Directory not found. Try again!\n");
+                    printf("Directory not found.\n");
                 }
             }
         }

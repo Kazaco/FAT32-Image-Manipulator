@@ -54,7 +54,8 @@ void free_dirlist(dirlist * directories);
 int file_exists(const char * filename);
 void running(const char * imgFile);
 tokenlist * getHex(const char * imgFile, int decStart, int size);
-char * littleEndianHexString(tokenlist * hex);
+char * littleEndianHexStringFromTokens(tokenlist * hex);
+char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size);
 char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
 dirlist * getDirectoryList(const char * imgFile, unsigned int N);
@@ -134,39 +135,52 @@ void running(const char * imgFile)
             if(tokens->size == 1)
             {
                 // struct DIRLIST entry;
-                printf("List Current\n");
                 readDirectories(currentDirectory);
             }
             //Check DIRNAME
             else
             {
-                printf("List DIRNAME\n");
                 //Check if given DIRNAME is in our current directory
                 int i = 0;
+                int found = 0;
                 for(i; i < currentDirectory->size; i++)
                 {
                     //Compare only up to only strlen(tokens->items[1]) b/c there will be spaces left from
                     //reading it directly from the .img file. 
                     if(strncmp(currentDirectory->items[i]->DIR_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
                     {
-                        printf("Match!\n");
-                        // tokenlist * hex = new_tokenlist();
-                        // char buffer[5];
-                        // int j = 0;
-                        // for(j; j < 2; j++)
-                        // {
-                        //     snprintf(buffer + j, 5, "%02x", currentDirectory->items[i]->DIR_FstClusLO[j]);
-                        //     printf("%s\n", buffer);
-                        // }
-                        // dirlist * readEntry = getDirectoryList(imgFile, );
-                        // readDirectories(readEntry);
-                        // free_dirlist(readEntry);
+                        //Only let the user ls directories
+                        if(currentDirectory->items[i]->DIR_Attr == 16 || currentDirectory->items[i]->DIR_Attr == 32)
+                        {
+                            if(currentDirectory->items[i]->DIR_Attr == 16)
+                            {
+                                char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusHI, 2);
+                                char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusLO, 2);
+                                unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                                unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                                dirlist * lsDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+                                readDirectories(lsDirectory);
+                                free(clusterHI);
+                                free(clusterLOW);
+                                free_dirlist(lsDirectory);
+                                found = 1;
+                                break;
+                            }
+                            else
+                            {
+                                //FILE w/ name, not directory!
+                            }
+                        }
                     }
                     else
                     {
-                        printf("N!\n");
+                        //printf("Not a match!\n");
                     }
-                    
+                }
+
+                if(found == 0)
+                {
+                    printf("> Directory not found. Try again!\n");
                 }
             }
         }
@@ -192,11 +206,11 @@ dirlist *new_dirlist(void)
 
 void free_dirlist(dirlist * directories)
 {
-  int i = 0;
+    int i = 0;
 	for (i; i < directories->size; i++)
-  {
-    free(directories->items[i]);
-  }
+    {
+        free(directories->items[i]);
+    }
 	free(directories);
 }
 
@@ -231,7 +245,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
         hex = getHex(imgFile, FatSector, 4);
         //Obtain Endian string, so we can determine if this is the last time we should read
         //from the FAT and search the data region.
-        littleEndian = littleEndianHexString(hex);
+        littleEndian = littleEndianHexStringFromTokens(hex);
         FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
         printf("FAT Endian Val: %i\n", FatSectorEndianVal);
         //Deallocate hex and little Endian for FAT portion
@@ -281,33 +295,6 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
         }
     } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
     
-    //We do not need to create .. entry
-    if(N == BPB.RootClus)
-    {
-        printf("ROOT!\n");
-        // Setting up '.' or current directory.
-        dirs->items = (DIRENTRY **) realloc(dirs->items, (dirs->size + 1) * sizeof(DIRENTRY));
-        dirs->items[dirs->size] = malloc(sizeof(DIRENTRY));
-        strcpy(dirs->items[dirs->size]->DIR_Name, ".");
-        dirs->size += 1;
-    }
-    else
-    {
-        // Setting up '..'
-        //Create a 'Directory' that points backwards
-        dirs->items = (DIRENTRY **) realloc(dirs->items, (dirs->size + 1) * sizeof(DIRENTRY));
-        dirs->items[dirs->size] = malloc(sizeof(DIRENTRY));
-        strcpy(dirs->items[dirs->size]->DIR_Name, "..");
-        // dirs->items[dirs->size]->DIR_FstClusLO = (unsigned char)N;
-        dirs->size += 1;
-
-        // Setting up '.' or current directory.
-        dirs->items = (DIRENTRY **) realloc(dirs->items, (dirs->size + 1) * sizeof(DIRENTRY));
-        dirs->items[dirs->size] = malloc(sizeof(DIRENTRY));
-        strcpy(dirs->items[dirs->size]->DIR_Name, ".");
-        dirs->size += 1;
-    }
-    
     return dirs;
 }
 
@@ -332,7 +319,14 @@ void readDirectories(dirlist * readEntry)
             //Everything else is a possibility (?)
             if(readEntry->items[i]->DIR_Attr == 16 || readEntry->items[i]->DIR_Attr == 32)
             {
-                printf("%s\n", readEntry->items[i]->DIR_Name);
+                if(readEntry->items[i]->DIR_Attr == 16)
+                {
+                    printf("(dir) %s\n", readEntry->items[i]->DIR_Name);
+                }
+                else
+                {
+                    printf("(file) %s\n", readEntry->items[i]->DIR_Name);
+                }
             }
         }
         else
@@ -349,9 +343,11 @@ tokenlist * getHex(const char * imgFile, int decStart, int size)
 {
     printf("getHex()\n");
     //C-String of Bit Values and Token List of Hex Values.
-    unsigned char * bitArr = (unsigned char *) malloc(sizeof(unsigned char) * size);
+    unsigned char * bitArr = malloc(sizeof(unsigned char) * size + 1);
     tokenlist * hex = new_tokenlist();
 
+    //Initialize to get rid of garbage data
+    strcpy(bitArr, "");
     //Open the file, we already checked that it exists. Obtain the file descriptor
     int file = open(imgFile, O_RDONLY);
     //Go to offset position in file. ~SEEK_SET = Absolute position in document.
@@ -377,11 +373,13 @@ tokenlist * getHex(const char * imgFile, int decStart, int size)
     return hex;
 }
 
-char * littleEndianHexString(tokenlist * hex)
+char * littleEndianHexStringFromTokens(tokenlist * hex)
 {
-    printf("littleEndianHexString()\n");
+    printf("littleEndianHexStringFromTokens()\n");
     //Allocate 2 * hex->size since we store 2 hexes at each item
-    char * littleEndian = (char *) malloc(sizeof(char *) * hex->size * 2);
+    char * littleEndian = malloc(sizeof(char) * hex->size * 2 + 1);
+    //Initialize to get rid of garbage data
+    strcpy(littleEndian, "");
     //Little Endian = Reading Backwards by 2
     int end = hex->size - 1;
     for(end; end >= 0; end--)
@@ -392,12 +390,34 @@ char * littleEndianHexString(tokenlist * hex)
     return littleEndian;
 }
 
+char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size)
+{
+    printf("littleEndianHexStringFromUnsignedChar()\n");
+    //Allocate 2 * hex->size since we store 2 hexes at each item
+    char * littleEndian = malloc(sizeof(char) * size * 2 + 1);
+    //Initialize to get rid of garbage data
+    strcpy(littleEndian, "");
+    //Little Endian = Reading Backwards by 2
+    char buffer[3];
+    int end = size - 1;
+    for(end; end >= 0; end--)
+    {
+        snprintf(buffer, 3, "%02x", arr[end]);
+        strcat(littleEndian, buffer);
+    }
+    printf("%s\n\n", littleEndian);
+    return littleEndian;
+}
+
+//CURRENTLY UNUSED
 char * bigEndianHexString(tokenlist * hex)
 {
     printf("bigEndianHexString()\n");
     //Allocate 2 * hex->size since we store 2 hexes at each item
-    char * bigEndian = (char *) malloc(sizeof(char *) * hex->size * 2);
-    //Little Endian = Reading Backwards by 2
+    char * bigEndian = malloc(sizeof(char) * hex->size * 2 + 1);
+    //Initialize to get rid of garbage data
+    strcpy(bigEndian, "");
+    //Read hex forwards
     int begin = 0;
     for(begin; begin < hex->size; begin++)
     {
@@ -415,7 +435,7 @@ void getBIOSParamBlock(const char * imgFile)
 
     //Calculate Bytes Per Sector
     hex = getHex(imgFile, 11, 2);
-    littleEndian = littleEndianHexString(hex);
+    littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.BytsPerSec = (unsigned int)strtol(littleEndian, NULL, 16);
     printf("Bytes Per Sector: %d\n", BPB.BytsPerSec);
     free_tokens(hex);
@@ -424,7 +444,7 @@ void getBIOSParamBlock(const char * imgFile)
 
     //Calculate Sectors per Cluster
     hex = getHex(imgFile, 13, 1);
-    littleEndian = littleEndianHexString(hex);
+    littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.SecPerClus = (unsigned int)strtol(littleEndian, NULL, 16);
     printf("Sectors per Cluster: %d\n", BPB.SecPerClus);
     free_tokens(hex);
@@ -433,7 +453,7 @@ void getBIOSParamBlock(const char * imgFile)
 
     //Calculate Reserved Sector Count
     hex = getHex(imgFile, 14, 2);
-    littleEndian = littleEndianHexString(hex);
+    littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.RsvdSecCnt = (unsigned int)strtol(littleEndian, NULL, 16);
     printf("Reserved Sector Count: %d\n", BPB.RsvdSecCnt);
     free_tokens(hex);
@@ -442,7 +462,7 @@ void getBIOSParamBlock(const char * imgFile)
 
     //Calculate number of FATs
     hex = getHex(imgFile, 16, 1);
-    littleEndian = littleEndianHexString(hex);
+    littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.NumFATs = (unsigned int)strtol(littleEndian, NULL, 16);
     printf("Number of FATs: %d\n", BPB.NumFATs);
     free_tokens(hex);
@@ -451,7 +471,7 @@ void getBIOSParamBlock(const char * imgFile)
 
     //Calculate total sectors
     hex = getHex(imgFile, 32, 4);
-    littleEndian = littleEndianHexString(hex);
+    littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.TotSec32 = (unsigned int)strtol(littleEndian, NULL, 16);
     printf("Total Sectors: %d\n", BPB.TotSec32);
     free_tokens(hex);
@@ -460,7 +480,7 @@ void getBIOSParamBlock(const char * imgFile)
 
     //Calculate FAT size
     hex = getHex(imgFile, 36, 4);
-    littleEndian = littleEndianHexString(hex);
+    littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.FATSz32 = (unsigned int)strtol(littleEndian, NULL, 16);
     printf("FAT size: %d\n", BPB.FATSz32);
     free_tokens(hex);
@@ -469,7 +489,7 @@ void getBIOSParamBlock(const char * imgFile)
 
     //Calculate Root Cluster
     hex = getHex(imgFile, 44, 4);
-    littleEndian = littleEndianHexString(hex);
+    littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.RootClus = (unsigned int)strtol(littleEndian, NULL, 16);
     printf("Root Cluster: %d\n", BPB.RootClus);
     free_tokens(hex);
@@ -563,4 +583,3 @@ void free_tokens(tokenlist *tokens)
 
 	free(tokens);
 }
-

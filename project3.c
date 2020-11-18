@@ -100,11 +100,11 @@ void running(const char * imgFile)
         char *input = get_input();
         //Split User Input into Tokens
         tokenlist *tokens = get_tokens(input);
-        int i = 0;
-        for (i; i < tokens->size; i++) 
-        {
-            //printf("token %d: (%s)\n", i, tokens->items[i]);
-        }
+//        int i = 0;
+//        for (i; i < tokens->size; i++)
+//        {
+//            //printf("token %d: (%s)\n", i, tokens->items[i]);
+//        }
 
         //Commands
         if(strcmp("exit", tokens->items[0]) == 0 && tokens->size == 1)
@@ -198,6 +198,46 @@ void running(const char * imgFile)
                 {
                     printf("Directory not found.\n");
                 }
+            }
+        }
+        else if(strcmp("cd", tokens->items[0]) == 0 && tokens->size == 2)
+        {
+            //Check if given DIRNAME is in our current directory
+            int i = 0;
+            int found = 0;
+            for(i; i < currentDirectory->size; i++)
+            {
+                //Compare only up to only strlen(tokens->items[1]) b/c there will be spaces left from
+                //reading it directly from the .img file.
+                if(strncmp(currentDirectory->items[i]->DIR_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
+                {
+                    //Check the DIR_Attr bit for ATTR_DIRECTORY
+                    if(currentDirectory->items[i]->DIR_Attr == 16)
+                    {
+                        char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusHI, 2);
+                        char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusLO, 2);
+                        unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                        unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                        //free the CWD
+                        free_dirlist(currentDirectory);
+                        //case for CD to root directory
+                        if(clusterValLOW == 0){
+                            dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                        }
+                        //case for cd to any other directory
+                        else{
+                            dirlist * currentDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+                        };
+                        free(clusterHI);
+                        free(clusterLOW);
+                        found = 1;
+                        break;
+                    }
+                }
+            }
+            if(found == 0)
+            {
+                printf("Directory not found.\n");
             }
         }
         else

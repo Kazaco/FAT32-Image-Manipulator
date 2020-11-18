@@ -327,6 +327,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
             read(file, dirs->items[dirs->size], 32);
             dirs->size += 1;
             DataSector += 32;
+            close(file);
         }
         
         //Set up data for new loop, or  quit.

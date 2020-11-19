@@ -19,19 +19,20 @@ struct BIOS_Param_Block {
     unsigned int RootClus;      //Root cluster
 } BPB;
 
+///
 struct DIRENTRY{
-unsigned char DIR_Name[11];
-unsigned char DIR_Attr;
-unsigned char DIR_NTRes;
-unsigned char DIR_CrtTimeTenth;
-unsigned char DIR_CrtTime[2];
-unsigned char DIR_CrtDate[2];
-unsigned char DIR_LstAccDate[2];
-unsigned char DIR_FstClusHI[2];
-unsigned char DIR_WrtTime[2];
-unsigned char DIR_WrtDate[2];
-unsigned char DIR_FstClusLO[2];
-unsigned char DIR_FileSize[4];
+    unsigned char DIR_Name[11];
+    unsigned char DIR_Attr;
+    unsigned char DIR_NTRes;
+    unsigned char DIR_CrtTimeTenth;
+    unsigned char DIR_CrtTime[2];
+    unsigned char DIR_CrtDate[2];
+    unsigned char DIR_LstAccDate[2];
+    unsigned char DIR_FstClusHI[2];
+    unsigned char DIR_WrtTime[2];
+    unsigned char DIR_WrtDate[2];
+    unsigned char DIR_FstClusLO[2];
+    unsigned char DIR_FileSize[4];
 } __attribute__((packed));
 typedef struct DIRENTRY DIRENTRY;
 
@@ -39,6 +40,25 @@ typedef struct {
 	int size;
 	DIRENTRY **items;
 } dirlist;
+
+#define FILENAME 1
+#define DIRECTORY 2
+#define FILEORDIR 3
+#define EMPTY 4
+
+///
+typedef struct {
+    unsigned char FILE_Name[11];
+    unsigned int FILE_FstClus;
+    char FILE_Mode[3];
+    unsigned int FILE_OFFSET;
+    unsigned int FILE_SIZE;
+} FILEENTRY;
+
+typedef struct {
+	int size;
+	FILEENTRY **items;
+} filesList;
 
 ///////////////////////////////////
 char *get_input(void);
@@ -48,8 +68,10 @@ void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
 ////////////////////////////////////
 dirlist *new_dirlist(void);
-void add_directory(dirlist * directories, DIRENTRY *item);
 void free_dirlist(dirlist * directories);
+////////////////////////////////////
+filesList *new_filesList(void);
+void free_filesList(filesList * openFiles);
 ////////////////////////////////////
 int file_exists(const char * filename);
 void running(const char * imgFile);
@@ -93,6 +115,8 @@ void running(const char * imgFile)
     getBIOSParamBlock(imgFile);
     //Make the User Start in the Root
     dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+    //Let the user have a container to interact w/ files no matter where they are in file system.
+    filesList * openFiles = new_filesList();
     printf("=== FAT32 File System ===\n");
     while(1)
     {
@@ -108,6 +132,7 @@ void running(const char * imgFile)
             printf("Exit\n");
             free(input);
             free_dirlist(currentDirectory);
+            free_filesList(openFiles);
             break;
         }
         else if(strcmp("info", tokens->items[0]) == 0 && tokens->size == 1)
@@ -124,7 +149,7 @@ void running(const char * imgFile)
         else if(strcmp("size", tokens->items[0]) == 0 && tokens->size == 2)
         {
             //Find index of FILENAME
-            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 1);
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], FILENAME);
             //Check if FILENAME was found or not.
             if(index != -1)
             {
@@ -151,7 +176,7 @@ void running(const char * imgFile)
             else
             {
                 //Find index of DIRNAME
-                int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2);
+                int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], DIRECTORY);
                 //Check if index found the DIRNAME or not.
                 if(index != -1)
                 {
@@ -178,7 +203,7 @@ void running(const char * imgFile)
         else if(strcmp("cd", tokens->items[0]) == 0 && tokens->size == 2)
         {
             //Find index of DIRNAME
-            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2);
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], DIRECTORY);
             //Check if given DIRNAME is in our current directory
             if(index != -1)
             {
@@ -207,7 +232,67 @@ void running(const char * imgFile)
         }
         else if(strcmp("open", tokens->items[0]) == 0 && tokens->size == 3)
         {
-
+            //Find index of FILENAME
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], FILENAME);
+            //Check if given FILENAME is in our current directory
+            if(index != -1)
+            {
+                //Check if dealing with read-only file.
+                if( ((currentDirectory->items[index]->DIR_Attr & 0x10) != 0) )
+                {
+                    //READ-ONLY
+                    if(strcmp("r", tokens->items[2]) == 0)
+                    {
+                        printf("Open!\n");
+                    }
+                    else
+                    {
+                        //Can't do anything with the file.
+                        printf("File given is read-only.\n");
+                    }
+                }
+                else
+                {
+                    //Can read or write to file.
+                    if(strcmp("r", tokens->items[2]) == 0 || strcmp("w", tokens->items[2]) == 0 
+                    || strcmp("rw", tokens->items[2]) == 0 || strcmp("wr", tokens->items[2]) == 0)
+                    {
+                        printf("Open!\n");
+                        //Create a new entry in our open files list.
+                        openFiles->items = (FILEENTRY **) realloc(openFiles->items, (openFiles->size + 1) * sizeof(FILEENTRY));
+                        openFiles->items[openFiles->size] = malloc(sizeof(FILEENTRY));
+                        //Copy relevant data over:
+                        //1. Name
+                        strcpy(openFiles->items[openFiles->size]->FILE_Name, currentDirectory->items[index]->DIR_Name);
+                        //2. Cluster Info
+                        char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusHI, 2);
+                        char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusLO, 2);
+                        unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                        unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                        openFiles->items[openFiles->size]->FILE_FstClus = clusterValHI + clusterValLOW;
+                        free(clusterHI);
+                        free(clusterLOW);
+                        //3. Mode
+                        strcpy(openFiles->items[openFiles->size]->FILE_Mode, tokens->items[2]);
+                        //4. Offset
+                        openFiles->items[openFiles->size]->FILE_OFFSET = 0;
+                        //5. File Size
+                        char * sizeStr = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FileSize, 4);
+                        unsigned int fileSize = (unsigned int)strtol(sizeStr, NULL, 16);
+                        openFiles->items[openFiles->size]->FILE_SIZE = fileSize;
+                        printf("File %s: %i bytes\n", tokens->items[1], fileSize);
+                        free(sizeStr);
+                    }
+                    else
+                    {
+                        printf("Invalid flag given.\n");
+                    }
+                }
+            }
+            else
+            {
+                printf("File not found.\n");
+            }
         }
         else
         {
@@ -341,9 +426,9 @@ void readDirectories(dirlist * readEntry)
             //LONGFILE Byte is not:
             // 1. ATTR_DIRECTORY 0x10 = 16
             // 2. ATTR_ARCHIVE 0x20 = 32
-            if(readEntry->items[i]->DIR_Attr == 16 || readEntry->items[i]->DIR_Attr == 32)
+            if( (readEntry->items[i]->DIR_Attr & 0x10) != 0 || (readEntry->items[i]->DIR_Attr & 0x20) != 0)
             {
-                if(readEntry->items[i]->DIR_Attr == 16)
+                if((readEntry->items[i]->DIR_Attr & 0x10) != 0)
                 {
                     printf("(dir) %s\n", readEntry->items[i]->DIR_Name);
                 }
@@ -377,14 +462,14 @@ int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int 
         if(strncmp(directories->items[i]->DIR_Name, item, strlen(item)) == 0 )
         {
             //Checking that the item is a directory.
-            if(directories->items[i]->DIR_Attr == 16 && (flag == 2 || flag == 3))
+            if( ((directories->items[i]->DIR_Attr & 0x10) != 0) && (flag == 2 || flag == 3))
             {
                 //Found directory.
                 found = i;
                 break;
             }
             //Checking that the item is a file.
-            else if(directories->items[i]->DIR_Attr == 32 && (flag == 1 || flag == 3))
+            else if( ((directories->items[i]->DIR_Attr & 0x20) != 0) && (flag == 1 || flag == 3))
             {
                 //Found file.
                 found = i;
@@ -403,8 +488,28 @@ int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int 
     return found;
 }
 
+/////////////////////////////////////////////////////
+// Open Files Logic
+/////////////////////////////////////////////////////
+filesList * new_filesList(void)
+{
+    filesList * files = (filesList *) malloc(sizeof(filesList));
+    files->size = 0;
+    files->items = (FILEENTRY **) malloc(sizeof(FILEENTRY *));
+    return files;
+}
+
+void free_filesList(filesList * openFiles)
+{
+    int i = 0;
+	for (i; i < openFiles->size; i++)
+    {
+        free(openFiles->items[i]);
+    }
+	free(openFiles);
+}
 //////////////////////////////////////////////////////
-// Parsing Hex Values    //////////////
+// Parsing Hex/Unsigned Char Values    //////////////
 //////////////////////////////////////////////////////
 tokenlist * getHex(const char * imgFile, int decStart, int size)
 {

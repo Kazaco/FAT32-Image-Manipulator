@@ -60,6 +60,7 @@ char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
 dirlist * getDirectoryList(const char * imgFile, unsigned int N);
 void readDirectories(dirlist * directories);
+int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag);
 ////////////////////////////////////
 
 int main(int argc, char *argv[])
@@ -100,11 +101,6 @@ void running(const char * imgFile)
         char *input = get_input();
         //Split User Input into Tokens
         tokenlist *tokens = get_tokens(input);
-//        int i = 0;
-//        for (i; i < tokens->size; i++)
-//        {
-//            //printf("token %d: (%s)\n", i, tokens->items[i]);
-//        }
 
         //Commands
         if(strcmp("exit", tokens->items[0]) == 0 && tokens->size == 1)
@@ -127,27 +123,18 @@ void running(const char * imgFile)
         }
         else if(strcmp("size", tokens->items[0]) == 0 && tokens->size == 2)
         {
-            int found = 0;
-            int i = 0;
-            for(i; i < currentDirectory->size; i++)
+            //Find index of FILENAME
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 1);
+            //Check if FILENAME was found or not.
+            if(index != -1)
             {
-                //Compare only up to only strlen(tokens->items[1]) b/c there will be spaces left from
-                //reading it directly from the .img file. 
-                if(strncmp(currentDirectory->items[i]->DIR_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
-                {
-                    //Only let the user find size of files
-                    if(currentDirectory->items[i]->DIR_Attr == 32)
-                    {
-                        char * sizeStr = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FileSize, 4);
-                        unsigned int fileSize = (unsigned int)strtol(sizeStr, NULL, 16);
-                        printf("File %s: %i bytes\n", tokens->items[1], fileSize);
-                        free(sizeStr);
-                        found = 1;
-                    }
-                }
+                //Change unsigned int values to little endian to calculate file size for given FILENAME
+                char * sizeStr = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FileSize, 4);
+                unsigned int fileSize = (unsigned int)strtol(sizeStr, NULL, 16);
+                printf("File %s: %i bytes\n", tokens->items[1], fileSize);
+                free(sizeStr);
             }
-
-            if(found == 0)
+            else
             {
                 printf("File not found.\n");
             }
@@ -157,44 +144,32 @@ void running(const char * imgFile)
             //Check Current Directory
             if(tokens->size == 1)
             {
-                // struct DIRLIST entry;
+                //Just read cwd
                 readDirectories(currentDirectory);
             }
             //Check DIRNAME
             else
             {
-                //Check if given DIRNAME is in our current directory
-                int i = 0;
-                int found = 0;
-                for(i; i < currentDirectory->size; i++)
+                //Find index of DIRNAME
+                int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2);
+                //Check if index found the DIRNAME or not.
+                if(index != -1)
                 {
-                    //Compare only up to only strlen(tokens->items[1]) b/c there will be spaces left from
-                    //reading it directly from the .img file. 
-                    if(strncmp(currentDirectory->items[i]->DIR_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
-                    {
-                        //Only let the user ls directories
-                        if(currentDirectory->items[i]->DIR_Attr == 16)
-                        {
-                            char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusHI, 2);
-                            char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusLO, 2);
-                            unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
-                            unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
-                            dirlist * lsDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
-                            readDirectories(lsDirectory);
-                            free(clusterHI);
-                            free(clusterLOW);
-                            free_dirlist(lsDirectory);
-                            found = 1;
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        //printf("Not a match!\n");
-                    }
+                    //Calculate cluster value of DIRNAME
+                    char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusHI, 2);
+                    char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusLO, 2);
+                    unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                    unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                    //Make list structure containing all files found in DIRNAME cluster.
+                    dirlist * lsDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+                    //Display to User
+                    readDirectories(lsDirectory);
+                    //Deallocate everything.
+                    free(clusterHI);
+                    free(clusterLOW);
+                    free_dirlist(lsDirectory);
                 }
-
-                if(found == 0)
+                else
                 {
                     printf("Directory not found.\n");
                 }
@@ -202,43 +177,37 @@ void running(const char * imgFile)
         }
         else if(strcmp("cd", tokens->items[0]) == 0 && tokens->size == 2)
         {
+            //Find index of DIRNAME
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2);
             //Check if given DIRNAME is in our current directory
-            int i = 0;
-            int found = 0;
-            for(i; i < currentDirectory->size; i++)
+            if(index != -1)
             {
-                //Compare only up to only strlen(tokens->items[1]) b/c there will be spaces left from
-                //reading it directly from the .img file.
-                if(strncmp(currentDirectory->items[i]->DIR_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
-                {
-                    //Check the DIR_Attr bit for ATTR_DIRECTORY
-                    if(currentDirectory->items[i]->DIR_Attr == 16)
-                    {
-                        char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusHI, 2);
-                        char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[i]->DIR_FstClusLO, 2);
-                        unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
-                        unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
-                        //free the CWD
-                        free_dirlist(currentDirectory);
-                        //case for CD to root directory
-                        if(clusterValLOW == 0){
-                            dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
-                        }
-                        //case for cd to any other directory
-                        else{
-                            dirlist * currentDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
-                        };
-                        free(clusterHI);
-                        free(clusterLOW);
-                        found = 1;
-                        break;
-                    }
+                //Calculate cluster value of DIRNAME
+                char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusHI, 2);
+                char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusLO, 2);
+                unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                //free the CWD
+                free_dirlist(currentDirectory);
+                //case for CD to root directory
+                if(clusterValLOW == 0){
+                    dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
                 }
+                //case for cd to any other directory
+                else{
+                    dirlist * currentDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+                }
+                free(clusterHI);
+                free(clusterLOW);   
             }
-            if(found == 0)
+            else
             {
                 printf("Directory not found.\n");
             }
+        }
+        else if(strcmp("open", tokens->items[0]) == 0 && tokens->size == 3)
+        {
+
         }
         else
         {
@@ -310,8 +279,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
 
         printf("Data Sector Start: %i\n", DataSector);
         //Read Hex at Data Sector Position. We do this 16 times b/c a file size is 32 and
-        //512 / 32 is 16. There can be at most 16 files in 1 sector. We'll stop early if 
-        //the next item is empty.
+        //512 / 32 is 16. There can be at most 16 files in 1 sector.
         int i = 0;
         for(i; i < 16; i++)
         {
@@ -371,9 +339,8 @@ void readDirectories(dirlist * readEntry)
         {
             //Check if LONGFILE is one of our entries.
             //LONGFILE Byte is not:
-            // 1. ATTR_DIRECTORY 0x10
-            // 2. ATTR_ARCHIVE 0x20
-            //Everything else is a possibility (?)
+            // 1. ATTR_DIRECTORY 0x10 = 16
+            // 2. ATTR_ARCHIVE 0x20 = 32
             if(readEntry->items[i]->DIR_Attr == 16 || readEntry->items[i]->DIR_Attr == 32)
             {
                 if(readEntry->items[i]->DIR_Attr == 16)
@@ -391,6 +358,49 @@ void readDirectories(dirlist * readEntry)
             //Empty File stored in readEntry
         }
     }
+}
+
+int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag)
+{
+    //Input Flags
+    //1 - File
+    //2 - Directory
+    //3 - Either File or Directory
+    //4 - Empty
+    //Check if given char * is in our given directory
+    int i = 0;
+    int found = -1;
+    for(i; i < directories->size; i++)
+    {
+        //Compare only up to only strlen(item) b/c there will be spaces left from
+        //reading it directly from the .img file. 
+        if(strncmp(directories->items[i]->DIR_Name, item, strlen(item)) == 0 )
+        {
+            //Checking that the item is a directory.
+            if(directories->items[i]->DIR_Attr == 16 && (flag == 2 || flag == 3))
+            {
+                //Found directory.
+                found = i;
+                break;
+            }
+            //Checking that the item is a file.
+            else if(directories->items[i]->DIR_Attr == 32 && (flag == 1 || flag == 3))
+            {
+                //Found file.
+                found = i;
+                break;
+            }
+        }
+
+        //Empty Entry
+        if((directories->items[i]->DIR_Name[0] == 0 || directories->items[i]->DIR_Name[0] == 229) && flag == 4)
+        {
+            found = i;
+            break;
+        }
+    }
+    //Return index of file/directory/empty if it is found. Val = -1 if not found.
+    return found;
 }
 
 //////////////////////////////////////////////////////

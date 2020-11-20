@@ -60,6 +60,7 @@ char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
 dirlist * getDirectoryList(const char * imgFile, unsigned int N);
 void readDirectories(dirlist * directories);
+int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag);
 ////////////////////////////////////
 
 int main(int argc, char *argv[])
@@ -240,6 +241,56 @@ void running(const char * imgFile)
                 printf("Directory not found.\n");
             }
         }
+        else if(strcmp("mv", tokens->items[0]) == 0 && tokens->size == 3){
+            //check if currentdir is root dir
+            //if true ensure that from argument isn't ..
+            //case TO exists
+            else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 2) != -1){
+                int loc = -1;
+                loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
+                if(loc != -1){
+                    //case FROM is a directory
+                    if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2) != -1){
+                        //mkdir FROM inside TO
+                        //copy contents to new DIRENTRY
+                        if(loc == currentDirectory->size -1){
+                            //First byte = 0x0
+                        }
+                        else{
+                            //First byte = 0xE5
+                        }
+                    }
+                    //case FROM is a file
+                    else{
+                        //creat FROM inside TO
+                        //copy contents to new DIRENTRY
+                        if(loc == currentDirectory->size -1){
+                            //First byte = 0x0
+                        }
+                        else{
+                            //First byte = 0xE5
+                        }
+                    }
+                }
+            }
+            //case FROM and TO are files
+            else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 1) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 1) != -1)
+            {
+                printf("The name is already being used by another file\n");
+            }
+            //case TO is a file and FROM is a directory
+            else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 1) != -1)
+            {
+                printf("Cannot move Directory: invalid destination argument\n");
+            }
+            //case TO DNE
+            else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 3) == -1){
+                if(strlen(tokens->items[2]) <= 11){
+                    int loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
+                    currentDirectory->items[loc]->DIR_Name = tokens->items[2];
+                }
+            }
+        }
         else
         {
             printf("Invalid Command Given\n");
@@ -391,7 +442,48 @@ void readDirectories(dirlist * readEntry)
         }
     }
 }
+int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag)
+{
+    //Input Flags
+    //1 - File
+    //2 - Directory
+    //3 - Either File or Directory
+    //4 - Empty
+    //Check if given char * is in our given directory
+    int i = 0;
+    int found = -1;
+    for(i; i < directories->size; i++)
+    {
+        //Compare only up to only strlen(item) b/c there will be spaces left from
+        //reading it directly from the .img file.
+        if(strncmp(directories->items[i]->DIR_Name, item, strlen(item)) == 0 )
+        {
+            //Checking that the item is a directory.
+            if( ((directories->items[i]->DIR_Attr & 0x10) != 0) && (flag == 2 || flag == 3))
+            {
+                //Found directory.
+                found = i;
+                break;
+            }
+                //Checking that the item is a file.
+            else if( ((directories->items[i]->DIR_Attr & 0x20) != 0) && (flag == 1 || flag == 3))
+            {
+                //Found file.
+                found = i;
+                break;
+            }
+        }
 
+        //Empty Entry
+        if((directories->items[i]->DIR_Name[0] == 0 || directories->items[i]->DIR_Name[0] == 229) && flag == 4)
+        {
+            found = i;
+            break;
+        }
+    }
+    //Return index of file/directory/empty if it is found. Val = -1 if not found.
+    return found;
+}
 //////////////////////////////////////////////////////
 // Parsing Hex Values    //////////////
 //////////////////////////////////////////////////////

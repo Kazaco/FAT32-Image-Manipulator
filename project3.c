@@ -219,11 +219,11 @@ void running(const char * imgFile)
                 free_dirlist(currentDirectory);
                 //case for CD to root directory
                 if(clusterValLOW == 0){
-                    dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                    currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
                 }
                 //case for cd to any other directory
                 else{
-                    dirlist * currentDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+                    currentDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
                 }
                 free(clusterHI);
                 free(clusterLOW);   
@@ -285,6 +285,56 @@ void running(const char * imgFile)
             else
             {
                 printf("File not found.\n");
+            }
+        }
+        else if(strcmp("close", tokens->items[0]) == 0 && tokens->size == 2)
+        {
+            //Find index of FILENAME in openFiles
+            int index = filesListIndex(openFiles, tokens->items[1]);
+            //Check if FILENAME was found or not.
+            if(index != -1)
+            {
+                //Create a new filesList b/c deleting items from dynamically allocated in c can't be simple.
+                filesList * newList = new_filesList();
+                //Create a new entry list 
+                newList->items = (FILEENTRY **) realloc(newList->items, (openFiles->size - 1) * sizeof(FILEENTRY));
+                //Copy all items over that don't have FILENAME.
+
+                printf("Size! %i\n\n", openFiles->size);
+                int i = 0;
+                for(i; i < openFiles->size; i++)
+                {
+                    //Copy everything over except the FILENAME given
+                    if(i != index)
+                    {
+                        printf("Copied! %i\n\n", index);
+                        //Create a new entry in our open files list.
+                        newList->items[newList->size] = malloc(sizeof(FILEENTRY));
+                        //1. Name
+                        strcpy(newList->items[newList->size]->FILE_Name, "");
+                        strcpy(newList->items[newList->size]->FILE_Name, openFiles->items[i]->FILE_Name);
+                        //2. Cluster Info
+                        newList->items[newList->size]->FILE_FstClus = openFiles->items[i]->FILE_FstClus;
+                        //3. Mode
+                        strcpy(newList->items[newList->size]->FILE_Mode, "");
+                        strcpy(newList->items[newList->size]->FILE_Mode, openFiles->items[i]->FILE_Mode);
+                        //4. Offset
+                        newList->items[newList->size]->FILE_OFFSET = openFiles->items[i]->FILE_OFFSET;
+                        //5. File Size
+                        newList->items[newList->size]->FILE_SIZE = openFiles->items[i]->FILE_SIZE;
+                        //Iterate
+                        newList->size += 1;
+                    }
+                }
+                printf("Copied!\n");
+                //Delete previous fileList and replace it.
+                free_filesList(openFiles);
+                openFiles = newList;
+                readFilesList(openFiles);
+            }
+            else
+            {
+                printf("File given is not open.\n");
             }
         }
         else

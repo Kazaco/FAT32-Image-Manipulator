@@ -337,7 +337,10 @@ void running(const char * imgFile)
         }
         else if(strcmp("mv", tokens->items[0]) == 0 && tokens->size == 3){
             //check if currentdir is root dir
-            //if true ensure that from argument isn't ..
+            if(currentDirectory->CUR_Clus == 2 && strcmp(".", tokens->items[1]) == 0)
+            {
+                printf("No such file or directory");
+            }
             //case TO exists as directory
             else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 2) != -1){
                 int loc = -1;
@@ -345,14 +348,24 @@ void running(const char * imgFile)
                 if(loc != -1){
                     //case FROM is a directory
                     if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2) != -1){
-                        //mkdir FROM inside TO
-                        //copy contents to new DIRENTRY
-                        if(loc == currentDirectory->size -1){
-                            //First byte = 0x0
+                        char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc]->DIR_FstClusLO, 2);
+                        unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                        //case the FROM is .. pointing to root directory
+                        if(clusterValLOW == 2 && strcmp("..", tokens->items[1]) == 0)
+                        {
+                            printf("No such file or directory");
                         }
                         else{
-                            //First byte = 0xE5
+                            //mkdir FROM inside TO
+                            //copy contents to new DIRENTRY
+                            if(loc == currentDirectory->size -1){
+                                //First byte = 0x0
+                            }
+                            else{
+                                //First byte = 0xE5
+                            }
                         }
+                        free(clusterLOW);
                     }
                     //case FROM is a file
                     else{

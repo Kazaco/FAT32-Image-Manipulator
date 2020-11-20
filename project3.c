@@ -77,7 +77,7 @@ filesList *new_filesList(void);
 void free_filesList(filesList * openFiles);
 int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist * tokens, int index);
 void readFilesList(filesList * openFiles);
-int filesListIndex(filesList * openFiles, const char * item, int clusterVal);
+int filesListIndex(filesList * openFiles, const char * item);
 ////////////////////////////////////
 int file_exists(const char * filename);
 void running(const char * imgFile);
@@ -513,7 +513,7 @@ int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist 
     free(clusterHI);
     free(clusterLOW);
     //Check cluster and name, if not found filesListIndex returns -1
-    if(filesListIndex(openFiles, tokens->items[1], clusterValHI + clusterValLOW) == -1)
+    if(filesListIndex(openFiles, tokens->items[1]) == -1)
     {
         //Create a new entry in our open files list.
         openFiles->items = (FILEENTRY **) realloc(openFiles->items, (openFiles->size + 1) * sizeof(FILEENTRY));
@@ -556,7 +556,7 @@ void readFilesList(filesList * openFiles)
     }
 }
 
-int filesListIndex(filesList * openFiles, const char * item, int clusterVal)
+int filesListIndex(filesList * openFiles, const char * item)
 {
     //Check if given char * is in our given files list
     int i = 0;
@@ -566,13 +566,8 @@ int filesListIndex(filesList * openFiles, const char * item, int clusterVal)
         //Check if we that item in our list.
         if(strncmp(openFiles->items[i]->FILE_Name, item, strlen(item)) == 0 )
         {
-            //If it's the same name, we could be in a different directory, so we 
-            //also need to make sure cluster number is the same.
-            if(openFiles->items[i]->FILE_FstClus == clusterVal)
-            {
-                found = i;
-                break;
-            }
+            found = i;
+            break;
         }
     }
     return found;

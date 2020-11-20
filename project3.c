@@ -244,7 +244,7 @@ void running(const char * imgFile)
         else if(strcmp("mv", tokens->items[0]) == 0 && tokens->size == 3){
             //check if currentdir is root dir
             //if true ensure that from argument isn't ..
-            //case TO exists
+            //case TO exists as directory
             else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 2) != -1){
                 int loc = -1;
                 loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
@@ -289,6 +289,10 @@ void running(const char * imgFile)
                     int loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
                     currentDirectory->items[loc]->DIR_Name = tokens->items[2];
                 }
+            }
+            //case FROM DNE
+            else{
+                printf("No such file or directory");
             }
         }
         else

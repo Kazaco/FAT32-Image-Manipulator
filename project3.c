@@ -393,8 +393,7 @@ void running(const char * imgFile)
             //case TO DNE
             else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 3) == -1){
                 if(strlen(tokens->items[2]) <= 11){
-                    int loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
-                    currentDirectory->items[loc]->DIR_Name = tokens->items[2];
+                    //write over previous DIRENTRY DIR_Name
                 }
             }
             //case FROM DNE
@@ -554,38 +553,6 @@ void readDirectories(dirlist * readEntry)
         }
     }
 }
-int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag)
-{
-    //Input Flags
-    //1 - File
-    //2 - Directory
-    //3 - Either File or Directory
-    //4 - Empty
-    //Check if given char * is in our given directory
-    int i = 0;
-    int found = -1;
-    for(i; i < directories->size; i++)
-    {
-        //Compare only up to only strlen(item) b/c there will be spaces left from
-        //reading it directly from the .img file.
-        if(strncmp(directories->items[i]->DIR_Name, item, strlen(item)) == 0 )
-        {
-            //Checking that the item is a directory.
-            if( ((directories->items[i]->DIR_Attr & 0x10) != 0) && (flag == 2 || flag == 3))
-            {
-                //Found directory.
-                found = i;
-                break;
-            }
-                //Checking that the item is a file.
-            else if( ((directories->items[i]->DIR_Attr & 0x20) != 0) && (flag == 1 || flag == 3))
-            {
-                //Found file.
-                found = i;
-                break;
-            }
-        }
-
 int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag)
 {
     //Input Flags

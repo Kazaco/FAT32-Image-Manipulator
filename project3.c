@@ -298,16 +298,14 @@ void running(const char * imgFile)
                 filesList * newList = new_filesList();
                 //Create a new entry list 
                 newList->items = (FILEENTRY **) realloc(newList->items, (openFiles->size - 1) * sizeof(FILEENTRY));
+                
                 //Copy all items over that don't have FILENAME.
-
-                printf("Size! %i\n\n", openFiles->size);
                 int i = 0;
                 for(i; i < openFiles->size; i++)
                 {
                     //Copy everything over except the FILENAME given
                     if(i != index)
                     {
-                        printf("Copied! %i\n\n", index);
                         //Create a new entry in our open files list.
                         newList->items[newList->size] = malloc(sizeof(FILEENTRY));
                         //1. Name
@@ -326,7 +324,6 @@ void running(const char * imgFile)
                         newList->size += 1;
                     }
                 }
-                printf("Copied!\n");
                 //Delete previous fileList and replace it.
                 free_filesList(openFiles);
                 openFiles = newList;

@@ -88,6 +88,7 @@ char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size);
 char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
 ////////////////////////////////////
+void createFile(const char * imgFile, dirlist * directories);
 
 int main(int argc, char *argv[])
 {
@@ -234,6 +235,11 @@ void running(const char * imgFile)
                 printf("Directory not found.\n");
             }
         }
+        else if(strcmp("creat", tokens->items[0]) == 0 && tokens->size == 2)
+        {
+            printf("Create file.\n");
+            createFile(imgFile, currentDirectory);
+        }
         else if(strcmp("open", tokens->items[0]) == 0 && tokens->size == 3)
         {
             //Find index of FILENAME
@@ -342,6 +348,45 @@ void running(const char * imgFile)
         free(input);
         free_tokens(tokens);
     }
+}
+
+void createFile(const char * imgFile, dirlist * directories)
+{
+    //Beginning Locations for FAT and Data Sector
+    unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+    unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+    int N = directories->CUR_Clus;
+    //Offset Location for N in FAT (Root = 2, 16392)
+    FatSector += N * 4;
+    //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
+    DataSector += (N - 2) * 512;
+
+    //Check if there is an empty space in current directory.
+    int index = dirlistIndexOfFileOrDirectory(directories, "", 4);
+    if(index != -1)
+    {
+        //We found an empty entry.
+        printf("%i\n", index);
+        DataSector += index * 32;
+
+        //Open the file, we already checked that it exists. Obtain the file descriptor
+        int file = open(imgFile, O_WRONLY);
+        //Go to offset position in file. ~SEEK_SET = Absolute position in document.
+        lseek(file, DataSector, SEEK_SET);
+        //Read from the file 'size' number of bits from decimal position given.
+        //We'll convert those bit values into hex, and insert into our hex token list.
+        write(file, directories->items[1], 32);
+        close(file);
+    }
+    else
+    {
+        //No empty spots here
+        printf("No empty spots here, need to check next cluster in directory.\n", index);
+    }
+
+    //We have already positioned ourselves in the *first* position with previous math.
+    printf("FAT Sector Start: %i\n", FatSector);
+    printf("Data Sector Start: %i\n", DataSector);
 }
 
 //////////////////////////////////////////////////////
@@ -480,10 +525,15 @@ void readDirectories(dirlist * readEntry)
                     printf("(file) %s\n", readEntry->items[i]->DIR_Name);
                 }
             }
+            else
+            {
+                printf("File we don't care about.\n");
+            }
         }
         else
         {
             //Empty File stored in readEntry
+            printf("Empty.\n");
         }
     }
 }

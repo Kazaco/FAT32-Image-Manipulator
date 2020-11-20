@@ -369,14 +369,23 @@ void createFile(const char * imgFile, dirlist * directories)
         printf("%i\n", index);
         DataSector += index * 32;
 
-        //Open the file, we already checked that it exists. Obtain the file descriptor
-        int file = open(imgFile, O_WRONLY);
-        //Go to offset position in file. ~SEEK_SET = Absolute position in document.
-        lseek(file, DataSector, SEEK_SET);
-        //Read from the file 'size' number of bits from decimal position given.
-        //We'll convert those bit values into hex, and insert into our hex token list.
-        write(file, directories->items[1], 32);
-        close(file);
+        char * test = "RED";
+        char * test1 = "R";
+        char * test2 = "E";
+        char * test3 = "D";
+
+        printf("%c\n", test1);
+        printf("%c\n", test2);
+        printf("%c\n", test3);
+
+        // //Open the file, we already checked that it exists. Obtain the file descriptor
+        // int file = open(imgFile, O_WRONLY);
+        // //Go to offset position in file. ~SEEK_SET = Absolute position in document.
+        // lseek(file, DataSector, SEEK_SET);
+        // //Read from the file 'size' number of bits from decimal position given.
+        // //We'll convert those bit values into hex, and insert into our hex token list.
+        // write(file, directories->items[1], 32);
+        // close(file);
     }
     else
     {

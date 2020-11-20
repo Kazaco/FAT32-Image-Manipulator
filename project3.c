@@ -19,19 +19,20 @@ struct BIOS_Param_Block {
     unsigned int RootClus;      //Root cluster
 } BPB;
 
+///
 struct DIRENTRY{
-unsigned char DIR_Name[11];
-unsigned char DIR_Attr;
-unsigned char DIR_NTRes;
-unsigned char DIR_CrtTimeTenth;
-unsigned char DIR_CrtTime[2];
-unsigned char DIR_CrtDate[2];
-unsigned char DIR_LstAccDate[2];
-unsigned char DIR_FstClusHI[2];
-unsigned char DIR_WrtTime[2];
-unsigned char DIR_WrtDate[2];
-unsigned char DIR_FstClusLO[2];
-unsigned char DIR_FileSize[4];
+    unsigned char DIR_Name[11];
+    unsigned char DIR_Attr;
+    unsigned char DIR_NTRes;
+    unsigned char DIR_CrtTimeTenth;
+    unsigned char DIR_CrtTime[2];
+    unsigned char DIR_CrtDate[2];
+    unsigned char DIR_LstAccDate[2];
+    unsigned char DIR_FstClusHI[2];
+    unsigned char DIR_WrtTime[2];
+    unsigned char DIR_WrtDate[2];
+    unsigned char DIR_FstClusLO[2];
+    unsigned char DIR_FileSize[4];
 } __attribute__((packed));
 typedef struct DIRENTRY DIRENTRY;
 
@@ -39,6 +40,25 @@ typedef struct {
 	int size;
 	DIRENTRY **items;
 } dirlist;
+
+#define FILENAME 1
+#define DIRECTORY 2
+#define FILEORDIR 3
+#define EMPTY 4
+
+///
+typedef struct {
+    unsigned char FILE_Name[11];
+    unsigned int FILE_FstClus;
+    char FILE_Mode[3];
+    unsigned int FILE_OFFSET;
+    unsigned int FILE_SIZE;
+} FILEENTRY;
+
+typedef struct {
+	int size;
+	FILEENTRY **items;
+} filesList;
 
 ///////////////////////////////////
 char *get_input(void);
@@ -48,8 +68,16 @@ void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
 ////////////////////////////////////
 dirlist *new_dirlist(void);
-void add_directory(dirlist * directories, DIRENTRY *item);
 void free_dirlist(dirlist * directories);
+dirlist * getDirectoryList(const char * imgFile, unsigned int N);
+void readDirectories(dirlist * directories);
+int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag);
+////////////////////////////////////
+filesList *new_filesList(void);
+void free_filesList(filesList * openFiles);
+int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist * tokens, int index);
+void readFilesList(filesList * openFiles);
+int filesListIndex(filesList * openFiles, const char * item);
 ////////////////////////////////////
 int file_exists(const char * filename);
 void running(const char * imgFile);
@@ -58,9 +86,6 @@ char * littleEndianHexStringFromTokens(tokenlist * hex);
 char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size);
 char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
-dirlist * getDirectoryList(const char * imgFile, unsigned int N);
-void readDirectories(dirlist * directories);
-int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag);
 ////////////////////////////////////
 
 int main(int argc, char *argv[])
@@ -93,6 +118,8 @@ void running(const char * imgFile)
     getBIOSParamBlock(imgFile);
     //Make the User Start in the Root
     dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+    //Let the user have a container to interact w/ files no matter where they are in file system.
+    filesList * openFiles = new_filesList();
     printf("=== FAT32 File System ===\n");
     while(1)
     {
@@ -108,6 +135,7 @@ void running(const char * imgFile)
             printf("Exit\n");
             free(input);
             free_dirlist(currentDirectory);
+            free_filesList(openFiles);
             break;
         }
         else if(strcmp("info", tokens->items[0]) == 0 && tokens->size == 1)
@@ -124,7 +152,7 @@ void running(const char * imgFile)
         else if(strcmp("size", tokens->items[0]) == 0 && tokens->size == 2)
         {
             //Find index of FILENAME
-            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 1);
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], FILENAME);
             //Check if FILENAME was found or not.
             if(index != -1)
             {
@@ -151,7 +179,7 @@ void running(const char * imgFile)
             else
             {
                 //Find index of DIRNAME
-                int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2);
+                int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], DIRECTORY);
                 //Check if index found the DIRNAME or not.
                 if(index != -1)
                 {
@@ -178,7 +206,7 @@ void running(const char * imgFile)
         else if(strcmp("cd", tokens->items[0]) == 0 && tokens->size == 2)
         {
             //Find index of DIRNAME
-            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2);
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], DIRECTORY);
             //Check if given DIRNAME is in our current directory
             if(index != -1)
             {
@@ -191,11 +219,11 @@ void running(const char * imgFile)
                 free_dirlist(currentDirectory);
                 //case for CD to root directory
                 if(clusterValLOW == 0){
-                    dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                    currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
                 }
                 //case for cd to any other directory
                 else{
-                    dirlist * currentDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+                    currentDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
                 }
                 free(clusterHI);
                 free(clusterLOW);   
@@ -207,7 +235,104 @@ void running(const char * imgFile)
         }
         else if(strcmp("open", tokens->items[0]) == 0 && tokens->size == 3)
         {
-
+            //Find index of FILENAME
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], FILENAME);
+            //Check if given FILENAME is in our current directory
+            if(index != -1)
+            {
+                //Check if dealing with read-only file.
+                if( ((currentDirectory->items[index]->DIR_Attr & 0x10) != 0) )
+                {
+                    //READ-ONLY (HAVE NOT BEEN ABLE TO TEST)
+                    if(strcmp("r", tokens->items[2]) == 0)
+                    {
+                        if(createOpenFileEntry(openFiles, currentDirectory, tokens, index) == 1)
+                        {
+                            readFilesList(openFiles);
+                        }
+                        else
+                        {
+                            printf("File given is already open.\n");
+                        }
+                    }
+                    else
+                    {
+                        //Can't do anything with the file.
+                        printf("File given is read-only.\n");
+                    }
+                }
+                else
+                {
+                    //Can read or write to file.
+                    if(strcmp("r", tokens->items[2]) == 0 || strcmp("w", tokens->items[2]) == 0 
+                    || strcmp("rw", tokens->items[2]) == 0 || strcmp("wr", tokens->items[2]) == 0)
+                    {
+                        if(createOpenFileEntry(openFiles, currentDirectory, tokens, index) == 1)
+                        {
+                            readFilesList(openFiles);
+                        }
+                        else
+                        {
+                            printf("File given is already open.\n");
+                        }
+                    }
+                    else
+                    {
+                        printf("Invalid flag given.\n");
+                    }
+                }
+            }
+            else
+            {
+                printf("File not found.\n");
+            }
+        }
+        else if(strcmp("close", tokens->items[0]) == 0 && tokens->size == 2)
+        {
+            //Find index of FILENAME in openFiles
+            int index = filesListIndex(openFiles, tokens->items[1]);
+            //Check if FILENAME was found or not.
+            if(index != -1)
+            {
+                //Create a new filesList b/c deleting items from dynamically allocated in c can't be simple.
+                filesList * newList = new_filesList();
+                //Create a new entry list 
+                newList->items = (FILEENTRY **) realloc(newList->items, (openFiles->size - 1) * sizeof(FILEENTRY));
+                
+                //Copy all items over that don't have FILENAME.
+                int i = 0;
+                for(i; i < openFiles->size; i++)
+                {
+                    //Copy everything over except the FILENAME given
+                    if(i != index)
+                    {
+                        //Create a new entry in our open files list.
+                        newList->items[newList->size] = malloc(sizeof(FILEENTRY));
+                        //1. Name
+                        strcpy(newList->items[newList->size]->FILE_Name, "");
+                        strcpy(newList->items[newList->size]->FILE_Name, openFiles->items[i]->FILE_Name);
+                        //2. Cluster Info
+                        newList->items[newList->size]->FILE_FstClus = openFiles->items[i]->FILE_FstClus;
+                        //3. Mode
+                        strcpy(newList->items[newList->size]->FILE_Mode, "");
+                        strcpy(newList->items[newList->size]->FILE_Mode, openFiles->items[i]->FILE_Mode);
+                        //4. Offset
+                        newList->items[newList->size]->FILE_OFFSET = openFiles->items[i]->FILE_OFFSET;
+                        //5. File Size
+                        newList->items[newList->size]->FILE_SIZE = openFiles->items[i]->FILE_SIZE;
+                        //Iterate
+                        newList->size += 1;
+                    }
+                }
+                //Delete previous fileList and replace it.
+                free_filesList(openFiles);
+                openFiles = newList;
+                readFilesList(openFiles);
+            }
+            else
+            {
+                printf("File given is not open.\n");
+            }
         }
         else
         {
@@ -341,9 +466,9 @@ void readDirectories(dirlist * readEntry)
             //LONGFILE Byte is not:
             // 1. ATTR_DIRECTORY 0x10 = 16
             // 2. ATTR_ARCHIVE 0x20 = 32
-            if(readEntry->items[i]->DIR_Attr == 16 || readEntry->items[i]->DIR_Attr == 32)
+            if( (readEntry->items[i]->DIR_Attr & 0x10) != 0 || (readEntry->items[i]->DIR_Attr & 0x20) != 0)
             {
-                if(readEntry->items[i]->DIR_Attr == 16)
+                if((readEntry->items[i]->DIR_Attr & 0x10) != 0)
                 {
                     printf("(dir) %s\n", readEntry->items[i]->DIR_Name);
                 }
@@ -377,14 +502,14 @@ int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int 
         if(strncmp(directories->items[i]->DIR_Name, item, strlen(item)) == 0 )
         {
             //Checking that the item is a directory.
-            if(directories->items[i]->DIR_Attr == 16 && (flag == 2 || flag == 3))
+            if( ((directories->items[i]->DIR_Attr & 0x10) != 0) && (flag == 2 || flag == 3))
             {
                 //Found directory.
                 found = i;
                 break;
             }
             //Checking that the item is a file.
-            else if(directories->items[i]->DIR_Attr == 32 && (flag == 1 || flag == 3))
+            else if( ((directories->items[i]->DIR_Attr & 0x20) != 0) && (flag == 1 || flag == 3))
             {
                 //Found file.
                 found = i;
@@ -403,8 +528,99 @@ int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int 
     return found;
 }
 
+/////////////////////////////////////////////////////
+// Open Files Logic
+/////////////////////////////////////////////////////
+filesList * new_filesList(void)
+{
+    filesList * files = (filesList *) malloc(sizeof(filesList));
+    files->size = 0;
+    files->items = (FILEENTRY **) malloc(sizeof(FILEENTRY *));
+    return files;
+}
+
+void free_filesList(filesList * openFiles)
+{
+    int i = 0;
+	for (i; i < openFiles->size; i++)
+    {
+        free(openFiles->items[i]);
+    }
+	free(openFiles);
+}
+
+int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist * tokens, int index)
+{
+    //First Check that we aren't creating a duplicate entry.
+    //Need the cluster number as well b/c files can have the same name in different directorys.
+    char * clusterHI = littleEndianHexStringFromUnsignedChar(directories->items[index]->DIR_FstClusHI, 2);
+    char * clusterLOW = littleEndianHexStringFromUnsignedChar(directories->items[index]->DIR_FstClusLO, 2);
+    unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+    unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+    free(clusterHI);
+    free(clusterLOW);
+    //Check cluster and name, if not found filesListIndex returns -1
+    if(filesListIndex(openFiles, tokens->items[1]) == -1)
+    {
+        //Create a new entry in our open files list.
+        openFiles->items = (FILEENTRY **) realloc(openFiles->items, (openFiles->size + 1) * sizeof(FILEENTRY));
+        openFiles->items[openFiles->size] = malloc(sizeof(FILEENTRY));
+        //Copy relevant data over:
+        //1. Name
+        strcpy(openFiles->items[openFiles->size]->FILE_Name, "");
+        strcpy(openFiles->items[openFiles->size]->FILE_Name, tokens->items[1]);
+        //2. Cluster Info
+        openFiles->items[openFiles->size]->FILE_FstClus = clusterValHI + clusterValLOW;
+        //3. Mode
+        strcpy(openFiles->items[openFiles->size]->FILE_Mode, "");
+        strcpy(openFiles->items[openFiles->size]->FILE_Mode, tokens->items[2]);
+        //4. Offset
+        openFiles->items[openFiles->size]->FILE_OFFSET = 0;
+        //5. File Size
+        char * sizeStr = littleEndianHexStringFromUnsignedChar(directories->items[index]->DIR_FileSize, 4);
+        unsigned int fileSize = (unsigned int)strtol(sizeStr, NULL, 16);
+        openFiles->items[openFiles->size]->FILE_SIZE = fileSize;
+        free(sizeStr);
+        //Iterate size of openFiles
+        openFiles->size += 1;
+        return 1;
+    }
+    else
+    {
+        //Found an entry with same name/cluster val
+        return -1;
+    }
+}
+
+void readFilesList(filesList * openFiles)
+{
+    //Reading Files List
+    int i = 0;
+    for (i; i < openFiles->size; i++)
+    {
+        printf("(open) %-11s : (mode) %-2s : (clus) %3i : (offset) %6i : (size) %6i\n", openFiles->items[i]->FILE_Name, openFiles->items[i]->FILE_Mode,
+        openFiles->items[i]->FILE_FstClus, openFiles->items[i]->FILE_OFFSET, openFiles->items[i]->FILE_SIZE);
+    }
+}
+
+int filesListIndex(filesList * openFiles, const char * item)
+{
+    //Check if given char * is in our given files list
+    int i = 0;
+    int found = -1;
+    for (i; i < openFiles->size; i++)
+    {
+        //Check if we that item in our list.
+        if(strncmp(openFiles->items[i]->FILE_Name, item, strlen(item)) == 0 )
+        {
+            found = i;
+            break;
+        }
+    }
+    return found;
+}
 //////////////////////////////////////////////////////
-// Parsing Hex Values    //////////////
+// Parsing Hex/Unsigned Char Values    //////////////
 //////////////////////////////////////////////////////
 tokenlist * getHex(const char * imgFile, int decStart, int size)
 {

@@ -69,9 +69,15 @@ void free_tokens(tokenlist *tokens);
 ////////////////////////////////////
 dirlist *new_dirlist(void);
 void free_dirlist(dirlist * directories);
+dirlist * getDirectoryList(const char * imgFile, unsigned int N);
+void readDirectories(dirlist * directories);
+int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag);
 ////////////////////////////////////
 filesList *new_filesList(void);
 void free_filesList(filesList * openFiles);
+int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist * tokens, int index);
+void readFilesList(filesList * openFiles);
+int filesListIndex(filesList * openFiles, const char * item, int clusterVal);
 ////////////////////////////////////
 int file_exists(const char * filename);
 void running(const char * imgFile);
@@ -80,9 +86,6 @@ char * littleEndianHexStringFromTokens(tokenlist * hex);
 char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size);
 char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
-dirlist * getDirectoryList(const char * imgFile, unsigned int N);
-void readDirectories(dirlist * directories);
-int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag);
 ////////////////////////////////////
 
 int main(int argc, char *argv[])
@@ -240,10 +243,17 @@ void running(const char * imgFile)
                 //Check if dealing with read-only file.
                 if( ((currentDirectory->items[index]->DIR_Attr & 0x10) != 0) )
                 {
-                    //READ-ONLY
+                    //READ-ONLY (HAVE NOT BEEN ABLE TO TEST)
                     if(strcmp("r", tokens->items[2]) == 0)
                     {
-                        printf("Open!\n");
+                        if(createOpenFileEntry(openFiles, currentDirectory, tokens, index) == 1)
+                        {
+                            readFilesList(openFiles);
+                        }
+                        else
+                        {
+                            printf("File given is already open.\n");
+                        }
                     }
                     else
                     {
@@ -257,31 +267,14 @@ void running(const char * imgFile)
                     if(strcmp("r", tokens->items[2]) == 0 || strcmp("w", tokens->items[2]) == 0 
                     || strcmp("rw", tokens->items[2]) == 0 || strcmp("wr", tokens->items[2]) == 0)
                     {
-                        printf("Open!\n");
-                        //Create a new entry in our open files list.
-                        openFiles->items = (FILEENTRY **) realloc(openFiles->items, (openFiles->size + 1) * sizeof(FILEENTRY));
-                        openFiles->items[openFiles->size] = malloc(sizeof(FILEENTRY));
-                        //Copy relevant data over:
-                        //1. Name
-                        strcpy(openFiles->items[openFiles->size]->FILE_Name, currentDirectory->items[index]->DIR_Name);
-                        //2. Cluster Info
-                        char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusHI, 2);
-                        char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusLO, 2);
-                        unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
-                        unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
-                        openFiles->items[openFiles->size]->FILE_FstClus = clusterValHI + clusterValLOW;
-                        free(clusterHI);
-                        free(clusterLOW);
-                        //3. Mode
-                        strcpy(openFiles->items[openFiles->size]->FILE_Mode, tokens->items[2]);
-                        //4. Offset
-                        openFiles->items[openFiles->size]->FILE_OFFSET = 0;
-                        //5. File Size
-                        char * sizeStr = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FileSize, 4);
-                        unsigned int fileSize = (unsigned int)strtol(sizeStr, NULL, 16);
-                        openFiles->items[openFiles->size]->FILE_SIZE = fileSize;
-                        printf("File %s: %i bytes\n", tokens->items[1], fileSize);
-                        free(sizeStr);
+                        if(createOpenFileEntry(openFiles, currentDirectory, tokens, index) == 1)
+                        {
+                            readFilesList(openFiles);
+                        }
+                        else
+                        {
+                            printf("File given is already open.\n");
+                        }
                     }
                     else
                     {
@@ -507,6 +500,82 @@ void free_filesList(filesList * openFiles)
         free(openFiles->items[i]);
     }
 	free(openFiles);
+}
+
+int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist * tokens, int index)
+{
+    //First Check that we aren't creating a duplicate entry.
+    //Need the cluster number as well b/c files can have the same name in different directorys.
+    char * clusterHI = littleEndianHexStringFromUnsignedChar(directories->items[index]->DIR_FstClusHI, 2);
+    char * clusterLOW = littleEndianHexStringFromUnsignedChar(directories->items[index]->DIR_FstClusLO, 2);
+    unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+    unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+    free(clusterHI);
+    free(clusterLOW);
+    //Check cluster and name, if not found filesListIndex returns -1
+    if(filesListIndex(openFiles, tokens->items[1], clusterValHI + clusterValLOW) == -1)
+    {
+        //Create a new entry in our open files list.
+        openFiles->items = (FILEENTRY **) realloc(openFiles->items, (openFiles->size + 1) * sizeof(FILEENTRY));
+        openFiles->items[openFiles->size] = malloc(sizeof(FILEENTRY));
+        //Copy relevant data over:
+        //1. Name
+        strcpy(openFiles->items[openFiles->size]->FILE_Name, "");
+        strcpy(openFiles->items[openFiles->size]->FILE_Name, tokens->items[1]);
+        //2. Cluster Info
+        openFiles->items[openFiles->size]->FILE_FstClus = clusterValHI + clusterValLOW;
+        //3. Mode
+        strcpy(openFiles->items[openFiles->size]->FILE_Mode, "");
+        strcpy(openFiles->items[openFiles->size]->FILE_Mode, tokens->items[2]);
+        //4. Offset
+        openFiles->items[openFiles->size]->FILE_OFFSET = 0;
+        //5. File Size
+        char * sizeStr = littleEndianHexStringFromUnsignedChar(directories->items[index]->DIR_FileSize, 4);
+        unsigned int fileSize = (unsigned int)strtol(sizeStr, NULL, 16);
+        openFiles->items[openFiles->size]->FILE_SIZE = fileSize;
+        free(sizeStr);
+        //Iterate size of openFiles
+        openFiles->size += 1;
+        return 1;
+    }
+    else
+    {
+        //Found an entry with same name/cluster val
+        return -1;
+    }
+}
+
+void readFilesList(filesList * openFiles)
+{
+    //Reading Files List
+    int i = 0;
+    for (i; i < openFiles->size; i++)
+    {
+        printf("(open) %-11s : (mode) %-2s : (clus) %3i : (offset) %6i : (size) %6i\n", openFiles->items[i]->FILE_Name, openFiles->items[i]->FILE_Mode,
+        openFiles->items[i]->FILE_FstClus, openFiles->items[i]->FILE_OFFSET, openFiles->items[i]->FILE_SIZE);
+    }
+}
+
+int filesListIndex(filesList * openFiles, const char * item, int clusterVal)
+{
+    //Check if given char * is in our given files list
+    int i = 0;
+    int found = -1;
+    for (i; i < openFiles->size; i++)
+    {
+        //Check if we that item in our list.
+        if(strncmp(openFiles->items[i]->FILE_Name, item, strlen(item)) == 0 )
+        {
+            //If it's the same name, we could be in a different directory, so we 
+            //also need to make sure cluster number is the same.
+            if(openFiles->items[i]->FILE_FstClus == clusterVal)
+            {
+                found = i;
+                break;
+            }
+        }
+    }
+    return found;
 }
 //////////////////////////////////////////////////////
 // Parsing Hex/Unsigned Char Values    //////////////

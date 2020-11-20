@@ -336,6 +336,11 @@ void running(const char * imgFile)
             }
         }
         else if(strcmp("mv", tokens->items[0]) == 0 && tokens->size == 3){
+            int file = open(imgFile, O_RDONLY)
+            unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+            int N = directories->CUR_Clus;
+            //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
+            DataSector += (N - 2) * 512;
             //check if currentdir is root dir
             if(currentDirectory->CUR_Clus == 2 && strcmp(".", tokens->items[1]) == 0)
             {
@@ -346,6 +351,8 @@ void running(const char * imgFile)
                 int loc = -1;
                 loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
                 if(loc != -1){
+                    DataSector += loc * 32;
+                    lseek(file, DataSector, SEEK_SET);
                     //case FROM is a directory
                     if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2) != -1){
                         char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc]->DIR_FstClusLO, 2);
@@ -359,7 +366,7 @@ void running(const char * imgFile)
                             //mkdir FROM inside TO
                             //copy contents to new DIRENTRY
                             if(loc == currentDirectory->size -1){
-                                //First byte = 0x0
+                                write()
                             }
                             else{
                                 //First byte = 0xE5

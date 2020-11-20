@@ -38,6 +38,7 @@ typedef struct DIRENTRY DIRENTRY;
 
 typedef struct {
 	int size;
+    unsigned int CUR_Clus;
 	DIRENTRY **items;
 } dirlist;
 
@@ -382,6 +383,8 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
     char * bigEndian;
     //Store List of Directories in whatever folder given by user
     dirlist * dirs = new_dirlist();
+    dirs->CUR_Clus = N;
+    printf("Current Cluster: %i\n", dirs->CUR_Clus);
 
     do
     {

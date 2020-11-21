@@ -353,35 +353,65 @@ void running(const char * imgFile)
 
 void createFile(const char * imgFile, dirlist * directories)
 {
-    //Beginning Locations for FAT and Data Sector
-    unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
-    unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+    // //Beginning Locations for FAT and Data Sector
+    // unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+    // unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
     int N = directories->CUR_Clus;
-    //Offset Location for N in FAT (Root = 2, 16392)
-    FatSector += N * 4;
-    //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
-    DataSector += (N - 2) * 512;
+    // //Offset Location for N in FAT (Root = 2, 16392)
+    // FatSector += N * 4;
+    // //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
+    // DataSector += (N - 2) * 512;
+    //Reading Hex Values from the FAT and Data Sector
+    tokenlist * hex;
+    char * littleEndian;
+    char * bigEndian;
 
     //Check if there is an empty space in current directory.
     int index = dirlistIndexOfFileOrDirectory(directories, "", 4);
+
     if(index != -1)
     {
-        //We found an empty entry.
-        printf("%i\n", index);
-        DataSector +=  index * 32;
-
-        //Retrieve Entry Number ASCII Value
-        intToASCIIStringWrite(imgFile, 1120, DataSector);
+        //We found an empty entry. We don't need to extend the FAT region for this cluster.
+        printf("We good\n");
     }
     else
     {
-        //No empty spots here
-        printf("No empty spots here, need to check next cluster in directory.\n", index);
-    }
+        //No more empty entries in this directory, need to extend the FAT
 
-    //We have already positioned ourselves in the *first* position with previous math.
-    printf("FAT Sector Start: %i\n", FatSector);
-    printf("Data Sector Start: %i\n", DataSector);
+        //Read the FAT until we are at the end of the chosen cluster (N). This will tell us
+        //the data sectors we should go to in the data region of sector size 512.
+        printf("Must create a new FAT entry\n");
+        printf("Cluster Num: %i\n", N);
+
+        //Read FAT until we find an empty item
+        unsigned int FatSectorEmptyEndianVal = 0;
+        unsigned int FatSectorEmpty = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.RootClus * 4);
+        unsigned int emptyEntryLoc = 2;
+        printf("FAT Sector Empty Start: %i\n", FatSectorEmpty);
+        do
+        {
+            //Read Hex at FatSector Position
+            hex = getHex(imgFile, FatSectorEmpty, 4);
+            //Obtain Endian string, so we can determine if this is an empty entry.
+            littleEndian = littleEndianHexStringFromTokens(hex);
+            FatSectorEmptyEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
+            printf("FAT Endian Empty Val: %i\n", FatSectorEmptyEndianVal);
+            //Deallocate hex and little Endian for FAT portion
+            free(littleEndian);
+            free_tokens(hex);
+
+            //Iterate
+            if(FatSectorEmptyEndianVal != 0)
+            {
+                //Iterate
+                FatSectorEmpty += 4;
+                emptyEntryLoc += 1;
+            }
+        } while (FatSectorEmptyEndianVal != 0);
+
+        printf("FAT Sector Empty Entry Loc: %i\n", emptyEntryLoc);
+        printf("FAT Sector Empty End: %i\n", FatSectorEmpty);
+    }
 }
 
 void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector)
@@ -431,6 +461,8 @@ void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSec
         DataSector++;
     }
 }
+
+
 
 //////////////////////////////////////////////////////
 // Directory List Logic //////////////

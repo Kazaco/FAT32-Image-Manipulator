@@ -89,6 +89,7 @@ char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
 ////////////////////////////////////
 void createFile(const char * imgFile, dirlist * directories);
+void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector);
 
 int main(int argc, char *argv[])
 {
@@ -367,25 +368,10 @@ void createFile(const char * imgFile, dirlist * directories)
     {
         //We found an empty entry.
         printf("%i\n", index);
-        DataSector += index * 32;
+        DataSector +=  index * 32;
 
-        char * test = "RED";
-        char * test1 = "R";
-        char * test2 = "E";
-        char * test3 = "D";
-
-        printf("%c\n", test1);
-        printf("%c\n", test2);
-        printf("%c\n", test3);
-
-        // //Open the file, we already checked that it exists. Obtain the file descriptor
-        // int file = open(imgFile, O_WRONLY);
-        // //Go to offset position in file. ~SEEK_SET = Absolute position in document.
-        // lseek(file, DataSector, SEEK_SET);
-        // //Read from the file 'size' number of bits from decimal position given.
-        // //We'll convert those bit values into hex, and insert into our hex token list.
-        // write(file, directories->items[1], 32);
-        // close(file);
+        //Retrieve Entry Number ASCII Value
+        intToASCIIStringWrite(imgFile, 1120, DataSector);
     }
     else
     {
@@ -396,6 +382,54 @@ void createFile(const char * imgFile, dirlist * directories)
     //We have already positioned ourselves in the *first* position with previous math.
     printf("FAT Sector Start: %i\n", FatSector);
     printf("Data Sector Start: %i\n", DataSector);
+}
+
+void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector)
+{
+    //Convert integer to its hex value. Assuming you aren't passing 
+    //values greater than 4 million here.
+    unsigned char hexString[9];
+    sprintf(hexString, "%08x", value);
+    printf("int: %i\n", value);
+    printf("hex: %s\n", hexString);
+
+    //Read this hex string string in little endian format.
+    int i = 7;
+    for(i; i >= 0; i -= 2)
+    {
+        //Initialize byte to be empty.
+        char hexByte[3];
+        strcpy(hexByte, "");
+
+        //Copy 2 hex values over
+        hexByte[2] = '\0';
+        hexByte[1] = hexString[i];
+        hexByte[0] = hexString[i - 1];
+        printf("Hex %i: %s\n", i, hexByte);
+
+        //ASCII decimal value needed
+        unsigned int decASCII = (unsigned int)strtol(hexByte, NULL, 16);
+        printf("ASCII Decimal: %i\n", decASCII);
+        unsigned char charASCII = (unsigned char ) decASCII;
+        printf("ASCII Char: %c\n", charASCII);
+
+        //Unsigned Char to array so we can write to file
+        char stringASCII[2];
+        strcpy(stringASCII, "");
+        strncat(stringASCII, &charASCII, 1);
+
+        //Open the file, we already checked that it exists. Obtain the file descriptor
+        int file = open(imgFile, O_WRONLY);
+        printf("file: %i\n", file);
+        //Go to offset position in file. ~SEEK_SET = Absolute position in document.
+        lseek(file, DataSector, SEEK_SET);
+        //Read from the file 'size' number of bits from decimal position given.
+        //We'll convert those bit values into hex, and insert into our hex token list.
+        write(file, &stringASCII, 1);
+        close(file);
+        //Iterate
+        DataSector++;
+    }
 }
 
 //////////////////////////////////////////////////////

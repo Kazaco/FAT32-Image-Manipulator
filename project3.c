@@ -88,7 +88,7 @@ char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size);
 char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
 ////////////////////////////////////
-void createFile(const char * imgFile, const char * filename, dirlist * directories);
+void createFile(const char * imgFile, const char * filename, dirlist * directories, unsigned int previousCluster, int flag);
 void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector, int begin, int size);
 unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr);
 unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories, unsigned int * endClusArr);
@@ -245,11 +245,25 @@ void running(const char * imgFile)
             //Check if given DIRNAME is in our current directory
             if(index == -1)
             {
-                createFile(imgFile, tokens->items[1], currentDirectory);
+                createFile(imgFile, tokens->items[1], currentDirectory, 0, 0);
             }
             else
             {
                 printf("File %s already exists.\n", tokens->items[1]);
+            }
+        }
+        else if(strcmp("mkdir", tokens->items[0]) == 0 && tokens->size == 2)
+        {
+            //Find index of DIRNAME
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], DIRECTORY);
+            //Check if given DIRNAME is in our current directory
+            if(index == -1)
+            {
+                createFile(imgFile, tokens->items[1], currentDirectory, 0, 1);
+            }
+            else
+            {
+                printf("Directory %s already exists.\n", tokens->items[1]);
             }
         }
         else if(strcmp("open", tokens->items[0]) == 0 && tokens->size == 3)
@@ -362,7 +376,7 @@ void running(const char * imgFile)
     }
 }
 
-void createFile(const char * imgFile, const char * filename, dirlist * directories)
+void createFile(const char * imgFile, const char * filename, dirlist * directories, unsigned int previousCluster, int flag)
 {
     tokenlist * hex;
     char * littleEndian;
@@ -492,12 +506,75 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     write(file, &name, 11);
     close(file);
     // Write type of file to disk
-    intToASCIIStringWrite(imgFile, 32, DataSector + 11, 0, 1);
-    // Write cluster of file to disk
-    //HI
-    intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 20, 2, 2);
-    //LOW
-    intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 26, 0, 2);
+    if(flag == 0)
+    {
+        //Create file
+        intToASCIIStringWrite(imgFile, 32, DataSector + 11, 0, 1);
+        // Write cluster of file to disk
+        //HI
+        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 20, 2, 2);
+        //LOW
+        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 26, 0, 2);
+    }
+    else if(flag == 1)
+    {
+        //Create directory
+        intToASCIIStringWrite(imgFile, 16, DataSector + 11, 0, 1);
+        // Write cluster of file to disk
+        //HI
+        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 20, 2, 2);
+        //LOW
+        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 26, 0, 2);
+        //Made changes to local directory list
+        free_dirlist(directories);
+        directories = getDirectoryList(imgFile, N);
+
+        //Find directory we just created.
+        int newIndex = dirlistIndexOfFileOrDirectory(directories, filename, 2);
+        //Calculate cluster value of DIRNAME
+        char * clusterHI = littleEndianHexStringFromUnsignedChar(directories->items[newIndex]->DIR_FstClusHI, 2);
+        char * clusterLOW = littleEndianHexStringFromUnsignedChar(directories->items[newIndex]->DIR_FstClusLO, 2);
+        unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+        unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+
+        //Create list of items
+        dirlist * newDirItems = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+        readDirectories(newDirItems);
+        createFile(imgFile, ".", newDirItems, 0, 2);
+        createFile(imgFile, "..", newDirItems, directories->CUR_Clus, 3);
+
+        // Write cluster of file to disk
+        //HI
+        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 20, 2, 2);
+        //LOW
+        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 26, 0, 2);
+        free_dirlist(newDirItems);
+    }
+    else if(flag == 2)
+    {
+        //Create . Entry
+        printf("HERE WE ARE\n");
+        //Create directory
+        intToASCIIStringWrite(imgFile, 16, DataSector + 11, 0, 1);
+        // Write cluster of file to disk
+        //HI
+        intToASCIIStringWrite(imgFile, directories->CUR_Clus, DataSector + 20, 2, 2);
+        //LOW
+        intToASCIIStringWrite(imgFile, directories->CUR_Clus, DataSector + 26, 0, 2);
+    }
+    else if(flag == 3)
+    {
+        //Create .. Entry
+        printf("HERE WE ARE\n");
+        //Create directory
+        intToASCIIStringWrite(imgFile, 16, DataSector + 11, 0, 1);
+        // Write cluster of file to disk
+        //HI
+        intToASCIIStringWrite(imgFile, previousCluster, DataSector + 20, 2, 2);
+        //LOW
+        intToASCIIStringWrite(imgFile, previousCluster, DataSector + 26, 0, 2);
+    }
+
     //Make changes to local directory list
     free_dirlist(directories);
     directories = getDirectoryList(imgFile, N);

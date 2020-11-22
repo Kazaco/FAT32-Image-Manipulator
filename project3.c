@@ -357,6 +357,9 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     char * littleEndian;
     char * bigEndian;
 
+    //NEED COPY of this value in-case we need to delete currentdirectory list!
+    int N = directories->CUR_Clus;
+
     //Check if there is an empty space in current directory.
     int index = dirlistIndexOfFileOrDirectory(directories, "", 4);
     if(index != -1)
@@ -447,6 +450,10 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     //Do the index calculation again, if we failed previously.
     if(index == -1)
     {
+        //Have to update the directories list we sent in.
+        free_dirlist(directories);
+        directories = getDirectoryList(imgFile, N);
+        //Find the empty entry.
         index = dirlistIndexOfFileOrDirectory(directories, "", 4);
     }
 
@@ -511,20 +518,23 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     //Offset for Empty Index Start
     DataSector += index * 32;
     printf("Main Data Sector Start + Offset: %i\n", DataSector);
-    // //Open the file, we already checked that it exists. Obtain the file descriptor
-    // int file = open(imgFile, O_WRONLY);
-    // //Go to offset position in file. ~SEEK_SET = Absolute position in document.
-    // lseek(file, DataSector, SEEK_SET);
-    // //Write Empty file entry to directory.
-    // struct DIRENTRY emptyFile;
-    // strcpy(emptyFile.DIR_Name, filename);
-    // emptyFile.DIR_Attr = '\n';
-    // write(file, &emptyFile, 32);
-    // close(file);
+    //Open the file, we already checked that it exists. Obtain the file descriptor
+    int file = open(imgFile, O_WRONLY);
+    //Go to offset position in file. ~SEEK_SET = Absolute position in document.
+    lseek(file, DataSector, SEEK_SET);
+    //Write name of file to disk
+    unsigned char name[11];
+    strcpy(name, filename);
+    lseek(file, DataSector, SEEK_SET);
+    //Only copy over strlen to avoid garbage data.
+    write(file, &name, strlen(filename));
+    close(file);
+    // Write type of file to disk
+    intToASCIIStringWrite(imgFile, 32, DataSector + 11);
 
     //Make changes to local directory list
-    // free_dirlist(directories);
-    // directories = getDirectoryList(imgFile, directories->CUR_Clus);
+    free_dirlist(directories);
+    directories = getDirectoryList(imgFile, N);
 }
 
 void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector)

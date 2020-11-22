@@ -370,9 +370,9 @@ void running(const char * imgFile)
             }
         }
         else if(strcmp("mv", tokens->items[0]) == 0 && tokens->size == 3){
-            int file = open(imgFile, O_RDONLY)
+            int file = open(imgFile, O_RDONLY);
             unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
-            int N = directories->CUR_Clus;
+            int N = currentDirectory->CUR_Clus;
             //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
             DataSector += (N - 2) * 512;
             //check if currentdir is root dir
@@ -385,22 +385,34 @@ void running(const char * imgFile)
                 int loc = -1;
                 loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
                 if(loc != -1){
-                    DataSector += loc * 32;
-                    lseek(file, DataSector, SEEK_SET);
+//                    DataSector += loc * 32;
+//                    lseek(file, DataSector, SEEK_SET);
                     //case FROM is a directory
                     if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2) != -1){
-                        char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc]->DIR_FstClusLO, 2);
-                        unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                        int loc1 = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2],2);
+                        char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc1]->DIR_FstClusHI, 2);
+                        char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc1]->DIR_FstClusLO, 2);
+                        strcat(clusterHI,clusterLOW);
+                        unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                        dirlist * to = getDirectoryList(imgFile, clusterValHI);
+                        //makes a new dirlist for the found To directory
                         //case the FROM is .. pointing to root directory
-                        if(clusterValLOW == 2 && strcmp("..", tokens->items[1]) == 0)
+                        if(clusterValHI == 0 && strcmp("..", tokens->items[1]) == 0)
                         {
                             printf("No such file or directory");
                         }
                         else{
-                            //mkdir FROM inside TO
+                            createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,1);
+                            int loc2 = dirlistIndexOfFileOrDirectory(to, tokens->items[1],2);
+                            N = to->CUR_Clus;
+                            DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                            DataSector += (N - 2) * 512;
+                            DataSector += loc2 * 32;
+                            lseek(file, DataSector, SEEK_SET);
+                            write(imgFile,&currentDirectory->items[loc],32);
                             //copy contents to new DIRENTRY
                             if(loc == currentDirectory->size -1){
-                                write()
+//                                write()
                             }
                             else{
                                 //First byte = 0xE5

@@ -191,10 +191,11 @@ void running(const char * imgFile)
                     //Calculate cluster value of DIRNAME
                     char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusHI, 2);
                     char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusLO, 2);
+                    strcat(clusterHI,clusterLOW);
                     unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
-                    unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                    //unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
                     //Make list structure containing all files found in DIRNAME cluster.
-                    dirlist * lsDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+                    dirlist * lsDirectory = getDirectoryList(imgFile, clusterValHI);
                     //Display to User
                     readDirectories(lsDirectory);
                     //Deallocate everything.
@@ -218,17 +219,18 @@ void running(const char * imgFile)
                 //Calculate cluster value of DIRNAME
                 char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusHI, 2);
                 char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[index]->DIR_FstClusLO, 2);
+                strcat(clusterHI,clusterLOW);
                 unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
-                unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+                //unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
                 //free the CWD
                 free_dirlist(currentDirectory);
                 //case for CD to root directory
-                if(clusterValLOW == 0){
+                if(clusterValHI == 0){
                     currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
                 }
                 //case for cd to any other directory
                 else{
-                    currentDirectory = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+                    currentDirectory = getDirectoryList(imgFile, clusterValHI);
                 }
                 free(clusterHI);
                 free(clusterLOW);   
@@ -534,11 +536,12 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
         //Calculate cluster value of DIRNAME
         char * clusterHI = littleEndianHexStringFromUnsignedChar(directories->items[newIndex]->DIR_FstClusHI, 2);
         char * clusterLOW = littleEndianHexStringFromUnsignedChar(directories->items[newIndex]->DIR_FstClusLO, 2);
+        strcat(clusterHI,clusterLOW);
         unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
-        unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+        //unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
 
         //Create list of items
-        dirlist * newDirItems = getDirectoryList(imgFile, clusterValHI + clusterValLOW);
+        dirlist * newDirItems = getDirectoryList(imgFile, clusterValHI);
         readDirectories(newDirItems);
         createFile(imgFile, ".", newDirItems, 0, 2);
         createFile(imgFile, "..", newDirItems, directories->CUR_Clus, 3);
@@ -952,8 +955,9 @@ int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist 
     //Need the cluster number as well b/c files can have the same name in different directorys.
     char * clusterHI = littleEndianHexStringFromUnsignedChar(directories->items[index]->DIR_FstClusHI, 2);
     char * clusterLOW = littleEndianHexStringFromUnsignedChar(directories->items[index]->DIR_FstClusLO, 2);
+    strcat(clusterHI, clusterLOW);
     unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
-    unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+    //unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
     free(clusterHI);
     free(clusterLOW);
     //Check cluster and name, if not found filesListIndex returns -1
@@ -967,7 +971,7 @@ int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist 
         strcpy(openFiles->items[openFiles->size]->FILE_Name, "");
         strcpy(openFiles->items[openFiles->size]->FILE_Name, tokens->items[1]);
         //2. Cluster Info
-        openFiles->items[openFiles->size]->FILE_FstClus = clusterValHI + clusterValLOW;
+        openFiles->items[openFiles->size]->FILE_FstClus = clusterValHI;
         //3. Mode
         strcpy(openFiles->items[openFiles->size]->FILE_Mode, "");
         strcpy(openFiles->items[openFiles->size]->FILE_Mode, tokens->items[2]);

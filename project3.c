@@ -240,8 +240,17 @@ void running(const char * imgFile)
         }
         else if(strcmp("creat", tokens->items[0]) == 0 && tokens->size == 2)
         {
-            printf("Create file.\n");
-            createFile(imgFile, tokens->items[1], currentDirectory);
+            //Find index of DIRNAME
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], FILENAME);
+            //Check if given DIRNAME is in our current directory
+            if(index == -1)
+            {
+                createFile(imgFile, tokens->items[1], currentDirectory);
+            }
+            else
+            {
+                printf("File %s already exists.\n", tokens->items[1]);
+            }
         }
         else if(strcmp("open", tokens->items[0]) == 0 && tokens->size == 3)
         {
@@ -477,9 +486,10 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     //Write name of file to disk
     unsigned char name[11];
     strcpy(name, filename);
+    strncat(name, "           ", 11 - strlen(filename));
     lseek(file, DataSector, SEEK_SET);
     //Only copy over strlen to avoid garbage data.
-    write(file, &name, strlen(filename));
+    write(file, &name, 11);
     close(file);
     // Write type of file to disk
     intToASCIIStringWrite(imgFile, 32, DataSector + 11, 0, 1);
@@ -488,7 +498,6 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 20, 2, 2);
     //LOW
     intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 26, 0, 2);
-
     //Make changes to local directory list
     free_dirlist(directories);
     directories = getDirectoryList(imgFile, N);

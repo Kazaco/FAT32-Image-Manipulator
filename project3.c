@@ -553,7 +553,6 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     else if(flag == 2)
     {
         //Create . Entry
-        printf("HERE WE ARE\n");
         //Create directory
         intToASCIIStringWrite(imgFile, 16, DataSector + 11, 0, 1);
         // Write cluster of file to disk
@@ -565,7 +564,6 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     else if(flag == 3)
     {
         //Create .. Entry
-        printf("HERE WE ARE\n");
         //Create directory
         intToASCIIStringWrite(imgFile, 16, DataSector + 11, 0, 1);
         // Write cluster of file to disk

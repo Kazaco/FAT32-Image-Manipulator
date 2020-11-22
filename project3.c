@@ -89,7 +89,9 @@ char * bigEndianHexString(tokenlist * hex);
 void getBIOSParamBlock(const char * imgFile);
 ////////////////////////////////////
 void createFile(const char * imgFile, const char * filename, dirlist * directories);
-void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector);
+void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector, int begin, int size);
+unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr);
+unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories, unsigned int * endClusArr);
 
 int main(int argc, char *argv[])
 {
@@ -359,6 +361,10 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
 
     //NEED COPY of this value in-case we need to delete currentdirectory list!
     int N = directories->CUR_Clus;
+    unsigned int emptyFATArr[2];
+    unsigned int * emptyFATptr;
+    unsigned int endClusterFATArr[2];
+    unsigned int * endClusterFATptr;
 
     //Check if there is an empty space in current directory.
     int index = dirlistIndexOfFileOrDirectory(directories, "", 4);
@@ -373,91 +379,33 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
         printf("Must create a new FAT entry\n");
 
         //Read FAT from top until we find an empty item
-        unsigned int FatSectorEmptyEndianVal = 0;
-        unsigned int FatSectorEmpty = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.RootClus * 4);
-        unsigned int emptyEntryLoc = 2;
-        printf("FAT Sector Empty Start: %i\n", FatSectorEmpty);
-        do
-        {
-            //Read Hex at FatSector Position
-            hex = getHex(imgFile, FatSectorEmpty, 4);
-            //Obtain Endian string, so we can determine if this is an empty entry.
-            littleEndian = littleEndianHexStringFromTokens(hex);
-            FatSectorEmptyEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-            printf("FAT Endian Empty Val: %i\n", FatSectorEmptyEndianVal);
-            //Deallocate hex and little Endian for FAT portion
-            free(littleEndian);
-            free_tokens(hex);
+        //arrPtr[0] : FAT Sector Empty Entry Loc
+        //arrPtr[1] : FAT Sector Empty End
+        emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
 
-            //Iterate
-            if(FatSectorEmptyEndianVal != 0)
-            {
-                //Iterate
-                FatSectorEmpty += 4;
-                emptyEntryLoc += 1;
-            }
-        } while (FatSectorEmptyEndianVal != 0);
-
-        printf("FAT Sector Empty Entry Loc: %i\n", emptyEntryLoc);
-        printf("FAT Sector Empty End: %i\n\n", FatSectorEmpty);
-
-        //Find the end of current directory cluster.
-        unsigned int FatSectorEndClusEndianVal = 0;
-        unsigned int FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec + (directories->CUR_Clus * 4);
-        unsigned int FatSectorEndClusLoc = directories->CUR_Clus;
-        printf("Cluster Num: %i\n", directories->CUR_Clus);
-        printf("FAT Sector Clus Start: %i\n", FatSectorEndClus);
-        printf("FAT Sector Clus Loc: %i\n", FatSectorEndClusLoc);
-        do
-        {
-            //Read Hex at FatSector Position
-            hex = getHex(imgFile, FatSectorEndClus, 4);
-            //Obtain Endian string, so we can determine if this is the last time we should read
-            //from the FAT and search the data region.
-            littleEndian = littleEndianHexStringFromTokens(hex);
-            FatSectorEndClusEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-            printf("FAT Endian End Val: %i\n", FatSectorEndClusEndianVal);
-            //Deallocate hex and little Endian for FAT portion
-            free_tokens(hex);
-            free(littleEndian);
-
-            //Set up data for new loop, or  quit.
-            //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
-            if((FatSectorEndClusEndianVal < 268435448 || FatSectorEndClusEndianVal > 4294967295) && FatSectorEndClusEndianVal != 0)
-            {
-                //We have to loop again in the FAT
-                FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec;
-                //New FAT Offset added
-                FatSectorEndClus += FatSectorEndClusEndianVal * 4;
-                printf("New FAT sector end: %i\n", FatSectorEndClus);
-            }
-            else
-            {
-                //This should be our last iteration. Do nothing.
-                printf("Last Time!\n");
-            }
-        
-        } while ((FatSectorEndClusEndianVal < 268435448 || FatSectorEndClusEndianVal > 4294967295) && FatSectorEndClusEndianVal != 0);
-        printf("FAT Sector Clus End: %i\n", FatSectorEndClus);
-        printf("FAT Sector Clus End Loc: %i\n", FatSectorEndClusLoc);
+        //endClusArr[0] : FAT Sector Clus End Loc
+        //endClusArr[1] : FAT Sector Clus End
+        endClusterFATptr = findEndClusEntryInFAT(imgFile, directories, endClusterFATArr);
 
         //Create new end for current directory cluster.
-        intToASCIIStringWrite(imgFile, 268435448, FatSectorEmpty);
+        // 268435448 = 0xF8FFFF0F (uint 32, little endian)
+        intToASCIIStringWrite(imgFile, 268435448, emptyFATptr[1], 0, 4);
         //Connect old end to new end of cluster.
-        intToASCIIStringWrite(imgFile, emptyEntryLoc, FatSectorEndClus);
+        intToASCIIStringWrite(imgFile, emptyFATptr[0], endClusterFATArr[1], 0, 4);
     }
 
     //Do the index calculation again, if we failed previously.
     if(index == -1)
     {
-        //Have to update the directories list we sent in.
+        //Update directories list b/c we just extended it.
         free_dirlist(directories);
         directories = getDirectoryList(imgFile, N);
+
         //Find the empty entry.
         index = dirlistIndexOfFileOrDirectory(directories, "", 4);
     }
 
-    //Do math to calculate the FAT sector we should iterate to get to 
+    //Do math to calculate the FAT sector we should iterate to get 
     //the right data region we should modify.
     int FATIterateNum = 0;
     while(index > 15)
@@ -518,6 +466,10 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     //Offset for Empty Index Start
     DataSector += index * 32;
     printf("Main Data Sector Start + Offset: %i\n", DataSector);
+
+    //Allocate for file cluster in FAT
+    emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
+    intToASCIIStringWrite(imgFile, 268435448, emptyFATptr[1], 0, 4);
     //Open the file, we already checked that it exists. Obtain the file descriptor
     int file = open(imgFile, O_WRONLY);
     //Go to offset position in file. ~SEEK_SET = Absolute position in document.
@@ -530,16 +482,21 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     write(file, &name, strlen(filename));
     close(file);
     // Write type of file to disk
-    intToASCIIStringWrite(imgFile, 32, DataSector + 11);
+    intToASCIIStringWrite(imgFile, 32, DataSector + 11, 0, 1);
+    // Write cluster of file to disk
+    //HI
+    intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 20, 2, 2);
+    //LOW
+    intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 26, 0, 2);
 
     //Make changes to local directory list
     free_dirlist(directories);
     directories = getDirectoryList(imgFile, N);
 }
 
-void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector)
+void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector, int begin, int size)
 {
-    //Convert integer to its hex value. Assuming you aren't passing 
+    //Convert wanted integer (little endian) to its hex value. Assuming you aren't passing 
     //values greater than 4 million here.
     unsigned char hexString[9];
     sprintf(hexString, "%08x", value);
@@ -547,7 +504,17 @@ void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSec
     printf("hex: %s\n", hexString);
 
     //Read this hex string string in little endian format.
-    int i = 7;
+    // OFFSET MATH:
+    // AA BB CC DD - HEX wanted on HxD in little endian
+    // begin = 0 -> AA
+    // begin = 1 -> BB
+    // begin = 2 -> CC
+    // begin = 3 -> DD
+    // 
+    // Example:
+    // begin = 0, size = 1 -> AA
+    // begin = 2, size = 2 -> CC DD
+    int i = 7 - (begin * 2);
     for(i; i >= 0; i -= 2)
     {
         //Initialize byte to be empty.
@@ -582,7 +549,104 @@ void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSec
         close(file);
         //Iterate
         DataSector++;
+        size--;
+
+        //Read smaller numbers
+        if(size == 0)
+        {
+            break;
+        }
     }
+}
+
+unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr)
+{
+    //Reading hex from file.
+    tokenlist * hex;
+    char * littleEndian;
+    //Read FAT from top until we find an empty item. We start at the root directory,
+    //so offset will automatically be 2 when we start.
+    unsigned int FatSectorEmptyEndianVal = 0;
+    unsigned int FatSectorEmpty = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.RootClus * 4);
+    unsigned int emptyEntryLoc = 2;
+    printf("FAT Sector Empty Start: %i\n", FatSectorEmpty);
+    do
+    {
+        //Read Hex at FatSector Position
+        hex = getHex(imgFile, FatSectorEmpty, 4);
+        //Obtain Endian string, so we can determine if this is an empty entry.
+        littleEndian = littleEndianHexStringFromTokens(hex);
+        FatSectorEmptyEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
+        printf("FAT Endian Empty Val: %i\n", FatSectorEmptyEndianVal);
+        //Deallocate hex and little Endian for FAT portion
+        free(littleEndian);
+        free_tokens(hex);
+
+        //Iterate
+        if(FatSectorEmptyEndianVal != 0)
+        {
+            //Iterate
+            FatSectorEmpty += 4;
+            emptyEntryLoc += 1;
+        }
+    } while (FatSectorEmptyEndianVal != 0);
+
+    //Return data
+    printf("arr[0] : FAT Sector Empty Entry Loc: %i\n", emptyEntryLoc);
+    printf("arr[1] : FAT Sector Empty End: %i\n\n", FatSectorEmpty);
+    emptyArr[0] = emptyEntryLoc;
+    emptyArr[1] = FatSectorEmpty;
+    return emptyArr;
+}
+
+unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories, unsigned int * endClusArr)
+{
+    //Reading hex from file.
+    tokenlist * hex;
+    char * littleEndian;
+    //Find the end of current directory cluster.
+    unsigned int FatSectorEndClusEndianVal = 0;
+    unsigned int FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec + (directories->CUR_Clus * 4);
+    unsigned int FatSectorEndClusLoc = directories->CUR_Clus;
+    printf("Cluster Num: %i\n", directories->CUR_Clus);
+    printf("FAT Sector Clus Start: %i\n", FatSectorEndClus);
+    printf("FAT Sector Clus Loc: %i\n", FatSectorEndClusLoc);
+    do
+    {
+        //Read Hex at FatSector Position
+        hex = getHex(imgFile, FatSectorEndClus, 4);
+        //Obtain Endian string, so we can determine if this is the last time we should read
+        //from the FAT and search the data region.
+        littleEndian = littleEndianHexStringFromTokens(hex);
+        FatSectorEndClusEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
+        printf("FAT Endian End Val: %i\n", FatSectorEndClusEndianVal);
+        //Deallocate hex and little Endian for FAT portion
+        free_tokens(hex);
+        free(littleEndian);
+
+        //Set up data for new loop, or  quit.
+        //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
+        if((FatSectorEndClusEndianVal < 268435448 || FatSectorEndClusEndianVal > 4294967295) && FatSectorEndClusEndianVal != 0)
+        {
+            //We have to loop again in the FAT
+            FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec;
+            //New FAT Offset added
+            FatSectorEndClus += FatSectorEndClusEndianVal * 4;
+            printf("New FAT sector end: %i\n", FatSectorEndClus);
+        }
+        else
+        {
+            //This should be our last iteration. Do nothing.
+            printf("Last Time!\n");
+        }
+    
+    } while ((FatSectorEndClusEndianVal < 268435448 || FatSectorEndClusEndianVal > 4294967295) && FatSectorEndClusEndianVal != 0);
+
+    printf("endClusArr[0] : FAT Sector Clus End Loc: %i\n", FatSectorEndClusLoc);
+    printf("endClusArr[1] : FAT Sector Clus End: %i\n", FatSectorEndClus);
+    endClusArr[0] = FatSectorEndClusLoc;
+    endClusArr[1] = FatSectorEndClus;
+    return endClusArr;
 }
 
 //////////////////////////////////////////////////////

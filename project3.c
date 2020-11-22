@@ -377,13 +377,9 @@ void createFile(const char * imgFile, dirlist * directories)
     else
     {
         //No more empty entries in this directory, need to extend the FAT
-
-        //Read the FAT until we are at the end of the chosen cluster (N). This will tell us
-        //the data sectors we should go to in the data region of sector size 512.
         printf("Must create a new FAT entry\n");
-        printf("Cluster Num: %i\n", N);
 
-        //Read FAT until we find an empty item
+        //Read FAT from top until we find an empty item
         unsigned int FatSectorEmptyEndianVal = 0;
         unsigned int FatSectorEmpty = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.RootClus * 4);
         unsigned int emptyEntryLoc = 2;
@@ -410,7 +406,60 @@ void createFile(const char * imgFile, dirlist * directories)
         } while (FatSectorEmptyEndianVal != 0);
 
         printf("FAT Sector Empty Entry Loc: %i\n", emptyEntryLoc);
-        printf("FAT Sector Empty End: %i\n", FatSectorEmpty);
+        printf("FAT Sector Empty End: %i\n\n", FatSectorEmpty);
+
+        //Find the end of current directory cluster.
+        unsigned int FatSectorEndClusEndianVal = 0;
+        unsigned int FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec + (N * 4);
+        unsigned int FatSectorEndClusLoc = N;
+        printf("Cluster Num: %i\n", N);
+        printf("FAT Sector Clus Start: %i\n", FatSectorEndClus);
+        printf("FAT Sector Clus Loc: %i\n", FatSectorEndClusLoc);
+        do
+        {
+            //Read Hex at FatSector Position
+            hex = getHex(imgFile, FatSectorEndClus, 4);
+            //Obtain Endian string, so we can determine if this is the last time we should read
+            //from the FAT and search the data region.
+            littleEndian = littleEndianHexStringFromTokens(hex);
+            FatSectorEndClusEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
+            printf("FAT Endian End Val: %i\n", FatSectorEndClusEndianVal);
+            //Deallocate hex and little Endian for FAT portion
+            free_tokens(hex);
+            free(littleEndian);
+
+            //Set up data for new loop, or  quit.
+            //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
+            if((FatSectorEndClusEndianVal < 268435448 || FatSectorEndClusEndianVal > 4294967295) && FatSectorEndClusEndianVal != 0)
+            {
+                //We have to loop again in the FAT
+                FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec;
+                //New FAT Offset added
+                FatSectorEndClus += FatSectorEndClusEndianVal * 4;
+                //New Possible End Loc found
+                N = FatSectorEndClusEndianVal;
+                printf("New FAT sector end: %i\n", FatSectorEndClus);
+            }
+            else
+            {
+                //This should be our last iteration. Do nothing.
+                printf("Last Time!\n");
+            }
+        
+        } while ((FatSectorEndClusEndianVal < 268435448 || FatSectorEndClusEndianVal > 4294967295) && FatSectorEndClusEndianVal != 0);
+        printf("FAT Sector Clus End: %i\n", FatSectorEndClus);
+        printf("FAT Sector Clus End Loc: %i\n", FatSectorEndClusLoc);
+
+        //Create new end for current directory cluster.
+        intToASCIIStringWrite(imgFile, 268435448, FatSectorEmpty);
+        //Connect old end to new end of cluster.
+        intToASCIIStringWrite(imgFile, emptyEntryLoc, FatSectorEndClus);
+    }
+
+    //Do the index calculation again, if we failed previously.
+    if(index == -1)
+    {
+        index = dirlistIndexOfFileOrDirectory(directories, "", 4);
     }
 }
 

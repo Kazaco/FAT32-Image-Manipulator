@@ -392,7 +392,12 @@ void running(const char * imgFile)
                     char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc1]->DIR_FstClusLO, 2);
                     strcat(clusterHI,clusterLOW);
                     unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
-                    dirlist * to = getDirectoryList(imgFile, clusterValHI);
+                    dirlist * to;
+                    if(clusterValHI == 0){
+                        to = getDirectoryList(imgFile, BPB.RootClus);
+                    }else{
+                        to = getDirectoryList(imgFile, clusterValHI);
+                    }
                     free(clusterHI);
                     free(clusterLOW);
                     //case FROM is a directory
@@ -400,7 +405,7 @@ void running(const char * imgFile)
 
                         //makes a new dirlist for the found To directory
                         //case the FROM is .. pointing to root directory
-                        if(clusterValHI == 0 && strcmp("..", tokens->items[1]) == 0)
+                        if(currentDirectory->CUR_Clus == 2 && strcmp("..", tokens->items[1]) == 0)
                         {
                             printf("No such file or directory\n");
                         }
@@ -421,11 +426,21 @@ void running(const char * imgFile)
                             //copy contents to new DIRENTRY
                             if(loc == currentDirectory->size -1){
                                 intToASCIIStringWrite(imgFile,0,DataSector,0,1);
-                                currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                if(currentDirectory->CUR_Clus == 2){
+                                    currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                                }
+                                else{
+                                    currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                }
                             }
                             else{
                                 intToASCIIStringWrite(imgFile,229,DataSector,0,1);
-                                currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                if(currentDirectory->CUR_Clus == 2){
+                                    currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                                }
+                                else{
+                                    currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                }
                             }
                         }
                     }
@@ -448,11 +463,21 @@ void running(const char * imgFile)
                         //copy contents to new DIRENTRY
                         if(loc == currentDirectory->size -1){
                             intToASCIIStringWrite(imgFile,0,DataSector,0,1);
-                            currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                            if(currentDirectory->CUR_Clus == 2){
+                                currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                            }
+                            else{
+                                currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                            }
                         }
                         else{
                             intToASCIIStringWrite(imgFile,229,DataSector,0,1);
-                            currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                            if(currentDirectory->CUR_Clus == 2){
+                                currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                            }
+                            else{
+                                currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                            }
                         }
                     }
                     free_dirlist(to);

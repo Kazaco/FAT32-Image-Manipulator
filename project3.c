@@ -382,6 +382,7 @@ void running(const char * imgFile)
             }
             //case TO exists as directory
             else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 2) != -1){
+                printf("case TO exists as directory\n");
                 int loc = -1;
                 loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
                 if(loc != -1){
@@ -402,7 +403,7 @@ void running(const char * imgFile)
                     free(clusterLOW);
                     //case FROM is a directory
                     if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2) != -1){
-
+                        printf("case FROM is a directory\n");
                         //makes a new dirlist for the found To directory
                         //case the FROM is .. pointing to root directory
                         if(currentDirectory->CUR_Clus == 2 && strcmp("..", tokens->items[1]) == 0)
@@ -410,7 +411,16 @@ void running(const char * imgFile)
                             printf("No such file or directory\n");
                         }
                         else{
-                            createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,1);
+                            int index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 3);
+                            //Check if given DIRNAME is in our current directory
+                            if(index == -1)
+                            {
+                                createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,1);
+                            }
+                            else
+                            {
+                                printf("File %s already exists.\n", tokens->items[1]);
+                            }
                             int loc2 = dirlistIndexOfFileOrDirectory(to, tokens->items[1],2);
                             N = to->CUR_Clus;
                             DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
@@ -446,7 +456,17 @@ void running(const char * imgFile)
                     }
                     //case FROM is a file
                     else{
-                        createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,0);
+                        printf("case FROM is a file\n");
+                        int index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 3);
+                        //Check if given DIRNAME is in our current directory
+                        if(index == -1)
+                        {
+                            createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,0);
+                        }
+                        else
+                        {
+                            printf("File %s already exists.\n", tokens->items[1]);
+                        }
                         int loc2 = dirlistIndexOfFileOrDirectory(to, tokens->items[1],2);
                         N = to->CUR_Clus;
                         DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
@@ -482,6 +502,11 @@ void running(const char * imgFile)
                     }
                     free_dirlist(to);
                 }
+                //case FROM DNE
+                else{
+                    printf("No such file or directory\n");
+                }
+
             }
             //case FROM and TO are files
             else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 1) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 1) != -1)
@@ -495,13 +520,27 @@ void running(const char * imgFile)
             }
             //case TO DNE
             else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 3) == -1){
+                printf("case TO DNE\n");
                 int loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1],3);
                 int loc1 = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2],3);
+                N = currentDirectory->CUR_Clus;
+                DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                 DataSector += loc * 32;
                 lseek(file, DataSector, SEEK_SET);
-                write(imgFile,currentDirectory->items[loc1],11);
+                unsigned char name[11];
+                strcpy(name, tokens->items[2]);
+                strncat(name, "           ", 11 - strlen(tokens->items[2]));
+                printf("%s\n",name);
+                write(file,&name,11);
+                //Updates current directorymv HELLO
+                if(currentDirectory->CUR_Clus == 2){
+                    currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                }
+                else{
+                    currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                }
             }
-            //case FROM DNE
+            //case FROM  and TO DNE
             else{
                 printf("No such file or directory\n");
             }

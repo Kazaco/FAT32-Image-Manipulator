@@ -378,7 +378,7 @@ void running(const char * imgFile)
             //check if currentdir is root dir
             if(currentDirectory->CUR_Clus == 2 && strcmp(".", tokens->items[1]) == 0)
             {
-                printf("No such file or directory");
+                printf("No such file or directory\n");
             }
             //case TO exists as directory
             else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 2) != -1){
@@ -402,7 +402,7 @@ void running(const char * imgFile)
                         //case the FROM is .. pointing to root directory
                         if(clusterValHI == 0 && strcmp("..", tokens->items[1]) == 0)
                         {
-                            printf("No such file or directory");
+                            printf("No such file or directory\n");
                         }
                         else{
                             createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,1);
@@ -421,12 +421,13 @@ void running(const char * imgFile)
                             //copy contents to new DIRENTRY
                             if(loc == currentDirectory->size -1){
                                 intToASCIIStringWrite(imgFile,0,DataSector,0,1);
+                                currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
                             }
                             else{
                                 intToASCIIStringWrite(imgFile,229,DataSector,0,1);
+                                currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
                             }
                         }
-                        free(clusterLOW);
                     }
                     //case FROM is a file
                     else{
@@ -447,11 +448,14 @@ void running(const char * imgFile)
                         //copy contents to new DIRENTRY
                         if(loc == currentDirectory->size -1){
                             intToASCIIStringWrite(imgFile,0,DataSector,0,1);
+                            currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
                         }
                         else{
                             intToASCIIStringWrite(imgFile,229,DataSector,0,1);
+                            currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
                         }
                     }
+                    free_dirlist(to);
                 }
             }
             //case FROM and TO are files
@@ -474,7 +478,7 @@ void running(const char * imgFile)
             }
             //case FROM DNE
             else{
-                printf("No such file or directory");
+                printf("No such file or directory\n");
             }
             close(file);
         }

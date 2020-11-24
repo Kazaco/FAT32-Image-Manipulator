@@ -373,7 +373,6 @@ void running(const char * imgFile)
             int file = open(imgFile, O_WRONLY);
             unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
             int N = currentDirectory->CUR_Clus;
-            //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
             DataSector += (N - 2) * 512;
             //check if currentdir is root dir
             if(currentDirectory->CUR_Clus == 2 && strcmp(".", tokens->items[1]) == 0)
@@ -386,8 +385,6 @@ void running(const char * imgFile)
                 int loc = -1;
                 loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
                 if(loc != -1){
-//                    DataSector += loc * 32;
-//                    lseek(file, DataSector, SEEK_SET);
                     int loc1 = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2],2);
                     char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc1]->DIR_FstClusHI, 2);
                     char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc1]->DIR_FstClusLO, 2);
@@ -411,28 +408,72 @@ void running(const char * imgFile)
                             printf("No such file or directory\n");
                         }
                         else{
-                            int index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 3);
+                            int index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 2);
                             //Check if given DIRNAME is in our current directory
                             if(index == -1)
                             {
                                 createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,1);
+                                int loc2 = dirlistIndexOfFileOrDirectory(to, tokens->items[1],2);
+                                N = to->CUR_Clus;
+                                DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                                DataSector += (N - 2) * 512;
+                                DataSector += loc2 * 32;
+                                lseek(file, DataSector, SEEK_SET);
+                                printf("The string is : %s",currentDirectory->items[loc]);
+                                write(file,currentDirectory->items[loc],32);
+
+                                N = currentDirectory->CUR_Clus;
+                                DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                                DataSector += (N - 2) * 512;
+                                DataSector += loc * 32;
+                                lseek(file, DataSector, SEEK_SET);
+                                //copy contents to new DIRENTRY
+                                if(loc == currentDirectory->size -1){
+                                    intToASCIIStringWrite(imgFile,0,DataSector,0,1);
+                                    if(currentDirectory->CUR_Clus == 2){
+                                        currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                                    }
+                                    else{
+                                        currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                    }
+                                }
+                                else{
+                                    intToASCIIStringWrite(imgFile,229,DataSector,0,1);
+                                    if(currentDirectory->CUR_Clus == 2){
+                                        currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                                    }
+                                    else{
+                                        currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                    }
+                                }
                             }
                             else
                             {
-                                printf("File %s already exists.\n", tokens->items[1]);
+                                printf("Directory %s already exists in destination directory.\n", tokens->items[1]);
                             }
+                        }
+                    }
+                    //case FROM is a file
+                    else{
+                        printf("case FROM is a file\n");
+                        int index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 1);
+                        //Check if given DIRNAME is in our current directory
+                        if(index == -1)
+                        {
+                            createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,0);
                             int loc2 = dirlistIndexOfFileOrDirectory(to, tokens->items[1],2);
                             N = to->CUR_Clus;
                             DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                             DataSector += (N - 2) * 512;
                             DataSector += loc2 * 32;
                             lseek(file, DataSector, SEEK_SET);
-                            write(imgFile,currentDirectory->items[loc],32);
+                            write(file,currentDirectory->items[loc],32);
                             N = currentDirectory->CUR_Clus;
                             DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                             DataSector += (N - 2) * 512;
                             DataSector += loc * 32;
                             lseek(file, DataSector, SEEK_SET);
+                            //creat FROM inside TO
                             //copy contents to new DIRENTRY
                             if(loc == currentDirectory->size -1){
                                 intToASCIIStringWrite(imgFile,0,DataSector,0,1);
@@ -453,51 +494,9 @@ void running(const char * imgFile)
                                 }
                             }
                         }
-                    }
-                    //case FROM is a file
-                    else{
-                        printf("case FROM is a file\n");
-                        int index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 3);
-                        //Check if given DIRNAME is in our current directory
-                        if(index == -1)
-                        {
-                            createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,0);
-                        }
                         else
                         {
-                            printf("File %s already exists.\n", tokens->items[1]);
-                        }
-                        int loc2 = dirlistIndexOfFileOrDirectory(to, tokens->items[1],2);
-                        N = to->CUR_Clus;
-                        DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
-                        DataSector += (N - 2) * 512;
-                        DataSector += loc2 * 32;
-                        lseek(file, DataSector, SEEK_SET);
-                        write(imgFile,currentDirectory->items[loc],32);
-                        N = currentDirectory->CUR_Clus;
-                        DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
-                        DataSector += (N - 2) * 512;
-                        DataSector += loc * 32;
-                        lseek(file, DataSector, SEEK_SET);
-                        //creat FROM inside TO
-                        //copy contents to new DIRENTRY
-                        if(loc == currentDirectory->size -1){
-                            intToASCIIStringWrite(imgFile,0,DataSector,0,1);
-                            if(currentDirectory->CUR_Clus == 2){
-                                currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
-                            }
-                            else{
-                                currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
-                            }
-                        }
-                        else{
-                            intToASCIIStringWrite(imgFile,229,DataSector,0,1);
-                            if(currentDirectory->CUR_Clus == 2){
-                                currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
-                            }
-                            else{
-                                currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
-                            }
+                            printf("File %s already exists in destination directory.\n", tokens->items[1]);
                         }
                     }
                     free_dirlist(to);
@@ -833,7 +832,7 @@ unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr
     unsigned int FatSectorEmptyEndianVal = 0;
     unsigned int FatSectorEmpty = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.RootClus * 4);
     unsigned int emptyEntryLoc = 2;
-    printf("FAT Sector Empty Start: %i\n", FatSectorEmpty);
+//    printf("FAT Sector Empty Start: %i\n", FatSectorEmpty);
     do
     {
         //Read Hex at FatSector Position
@@ -841,7 +840,7 @@ unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr
         //Obtain Endian string, so we can determine if this is an empty entry.
         littleEndian = littleEndianHexStringFromTokens(hex);
         FatSectorEmptyEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-        printf("FAT Endian Empty Val: %i\n", FatSectorEmptyEndianVal);
+//        printf("FAT Endian Empty Val: %i\n", FatSectorEmptyEndianVal);
         //Deallocate hex and little Endian for FAT portion
         free(littleEndian);
         free_tokens(hex);
@@ -856,8 +855,8 @@ unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr
     } while (FatSectorEmptyEndianVal != 0);
 
     //Return data
-    printf("arr[0] : FAT Sector Empty Entry Loc: %i\n", emptyEntryLoc);
-    printf("arr[1] : FAT Sector Empty End: %i\n\n", FatSectorEmpty);
+//    printf("arr[0] : FAT Sector Empty Entry Loc: %i\n", emptyEntryLoc);
+//    printf("arr[1] : FAT Sector Empty End: %i\n\n", FatSectorEmpty);
     emptyArr[0] = emptyEntryLoc;
     emptyArr[1] = FatSectorEmpty;
     return emptyArr;
@@ -1201,7 +1200,7 @@ int filesListIndex(filesList * openFiles, const char * item)
 //////////////////////////////////////////////////////
 tokenlist * getHex(const char * imgFile, int decStart, int size)
 {
-    printf("getHex()\n");
+   // printf("getHex()\n");
     //C-String of Bit Values and Token List of Hex Values.
     unsigned char * bitArr = malloc(sizeof(unsigned char) * size + 1);
     tokenlist * hex = new_tokenlist();
@@ -1222,7 +1221,7 @@ tokenlist * getHex(const char * imgFile, int decStart, int size)
         //Create hex string using input. Size should always be 3
         //for 2 bits and 1 null character. 
         snprintf(buffer, 3, "%02x", bitArr[i]);
-        printf("%s ", buffer);
+        //printf("%s ", buffer);
         add_token(hex, buffer);
     }
     printf("\n");
@@ -1235,7 +1234,7 @@ tokenlist * getHex(const char * imgFile, int decStart, int size)
 
 char * littleEndianHexStringFromTokens(tokenlist * hex)
 {
-    printf("littleEndianHexStringFromTokens()\n");
+    //printf("littleEndianHexStringFromTokens()\n");
     //Allocate 2 * hex->size since we store 2 hexes at each item
     char * littleEndian = malloc(sizeof(char) * hex->size * 2 + 1);
     //Initialize to get rid of garbage data
@@ -1246,7 +1245,7 @@ char * littleEndianHexStringFromTokens(tokenlist * hex)
     {
         strcat(littleEndian, hex->items[end]);
     }
-    printf("%s\n\n", littleEndian);
+    //printf("%s\n\n", littleEndian);
     return littleEndian;
 }
 

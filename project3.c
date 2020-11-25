@@ -92,6 +92,7 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
 void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector, int begin, int size);
 unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr);
 unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories, unsigned int * endClusArr);
+unsigned int * findFatSectorInDir(const char* imgFile, unsigned int * fats, unsigned int clus);
 
 int main(int argc, char *argv[])
 {
@@ -368,6 +369,210 @@ void running(const char * imgFile)
             {
                 printf("File given is not open.\n");
             }
+        }
+        else if(strcmp("mv", tokens->items[0]) == 0 && tokens->size == 3){
+            int file = open(imgFile, O_WRONLY);
+            unsigned int DataSector;
+            //check if currentdir is root dir
+            if(currentDirectory->CUR_Clus == 2 && strcmp(".", tokens->items[1]) == 0)
+            {
+                printf("No such file or directory\n");
+            }
+            //case TO exists as directory
+            else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 2) != -1){
+                int loc = -1;
+                loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3);
+                if(loc != -1){
+                    int loc1 = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2],2);
+                    char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc1]->DIR_FstClusHI, 2);
+                    char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc1]->DIR_FstClusLO, 2);
+                    strcat(clusterHI,clusterLOW);
+                    unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                    dirlist * to;
+                    if(clusterValHI == 0){
+                        to = getDirectoryList(imgFile, BPB.RootClus);
+                    }else{
+                        to = getDirectoryList(imgFile, clusterValHI);
+                    }
+                    free(clusterHI);
+                    free(clusterLOW);
+                    //case FROM is a directory
+                    if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2) != -1){
+                        //makes a new dirlist for the found To directory
+                        //case the FROM is .. pointing to root directory
+                        if(currentDirectory->CUR_Clus == 2 && strcmp("..", tokens->items[1]) == 0)
+                        {
+                            printf("No such file or directory\n");
+                        }
+                        else{
+                            int index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 2);
+                            //Check if given DIRNAME is in our current directory
+                            if(index == -1)
+                            {
+                                createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,1);
+                                index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 2);
+                                unsigned int fats[2];
+                                unsigned int * fatsPtr;
+                                fats[0] = index;
+                                fatsPtr = findFatSectorInDir(imgFile, fats,to->CUR_Clus);
+                                unsigned int FatSectorDirCluster = fatsPtr[1];
+                                index = fatsPtr[0];
+                                DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                                DataSector += (FatSectorDirCluster - 2) * 512;
+                                DataSector += index * 32;
+                                lseek(file, DataSector, SEEK_SET);
+                                write(file,currentDirectory->items[loc],32);
+
+                                fats[0] = loc;
+                                fatsPtr = findFatSectorInDir(imgFile,fats,currentDirectory->CUR_Clus);
+                                FatSectorDirCluster = fatsPtr[1];
+                                loc = fatsPtr[0];
+                                DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                                DataSector += (FatSectorDirCluster - 2) * 512;
+                                DataSector += loc * 32;
+                                lseek(file, DataSector, SEEK_SET);
+                                //copy contents to new DIRENTRY
+                                if(loc == currentDirectory->size -1){
+                                    intToASCIIStringWrite(imgFile,0,DataSector,0,1);
+                                    if(currentDirectory->CUR_Clus == 2){
+                                        currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                                    }
+                                    else{
+                                        currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                    }
+                                }
+                                else{
+                                    intToASCIIStringWrite(imgFile,229,DataSector,0,1);
+                                    if(currentDirectory->CUR_Clus == 2){
+                                        currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                                    }
+                                    else{
+                                        currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                printf("The name is already being used by another file\n", tokens->items[1]);
+                            }
+                        }
+                    }
+                    //case FROM is a file
+                    else{
+                        int index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 1);
+                        //Check if given DIRNAME is in our current directory
+                        if(index == -1)
+                        {
+                            createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,0);
+                            index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 1);
+                            unsigned int fats[2];
+                            unsigned int * fatsPtr;
+                            fats[0] = index;
+                            fatsPtr = findFatSectorInDir(imgFile, fats,to->CUR_Clus);
+                            unsigned int FatSectorDirCluster = fatsPtr[1];
+                            index = fatsPtr[0];
+                            //Modify the Data Region
+                            unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                            //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
+                            DataSector += (FatSectorDirCluster - 2) * 512;
+                            //Offset for Empty Index Start
+                            DataSector += index * 32;
+
+                            lseek(file, DataSector, SEEK_SET);
+                            write(file,currentDirectory->items[loc],32);
+
+                            //Do math to calculate the FAT sector we should iterate to get 
+                            //the right data region we should modify
+                            fats[0] = loc;
+                            fatsPtr = findFatSectorInDir(imgFile,fats,currentDirectory->CUR_Clus);
+                            FatSectorDirCluster = fatsPtr[1];
+                            loc = fatsPtr[0];
+                            //Modify the Data Region
+                            DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                            //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
+                            DataSector += (FatSectorDirCluster - 2) * 512;
+                            //Offset for Empty Index Start
+                            DataSector += loc * 32;
+
+                            lseek(file, DataSector, SEEK_SET);
+                            //creat FROM inside TO
+                            //copy contents to new DIRENTRY
+                            if(loc == currentDirectory->size -1){
+                                intToASCIIStringWrite(imgFile,0,DataSector,0,1);
+                                if(currentDirectory->CUR_Clus == 2){
+                                    currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                                }
+                                else{
+                                    currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                }
+                            }
+                            else{
+                                intToASCIIStringWrite(imgFile,229,DataSector,0,1);
+                                if(currentDirectory->CUR_Clus == 2){
+                                    currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                                }
+                                else{
+                                    currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            printf("The name is already being used by another file\n", tokens->items[1]);
+                        }
+                    }
+                    free_dirlist(to);
+                }
+                //case FROM DNE
+                else{
+                    printf("No such file or directory\n");
+                }
+
+            }
+            //case FROM and TO are files
+            else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 1) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 1) != -1)
+            {
+                printf("The name is already being used by another file\n");
+            }
+            //case TO is a file and FROM is a directory
+            else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 2) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 1) != -1)
+            {
+                printf("Cannot move Directory: invalid destination argument\n");
+            }
+            //case TO DNE
+            else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 3) == -1){
+                int loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1],3);
+                int loc1 = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2],3);
+                unsigned int fats[2];
+                unsigned int * fatsPtr;
+                fats[0] = loc;
+                fatsPtr = findFatSectorInDir(imgFile,fats,currentDirectory->CUR_Clus);
+                unsigned int FatSectorDirCluster = fatsPtr[1];
+                loc = fatsPtr[0];
+                //Modify the Data Region
+                unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
+                DataSector += (FatSectorDirCluster - 2) * 512;
+                //Offset for Empty Index Start
+                DataSector += loc * 32;
+                lseek(file, DataSector, SEEK_SET);
+                unsigned char name[11];
+                strcpy(name, tokens->items[2]);
+                strncat(name, "           ", 11 - strlen(tokens->items[2]));
+                write(file,&name,11);
+                //Updates current directory
+                if(currentDirectory->CUR_Clus == 2){
+                    currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+                }
+                else{
+                    currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
+                }
+            }
+            //case FROM  and TO DNE
+            else{
+                printf("No such file or directory\n");
+            }
+            close(file);
         }
         else
         {
@@ -656,7 +861,7 @@ unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr
     unsigned int FatSectorEmptyEndianVal = 0;
     unsigned int FatSectorEmpty = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.RootClus * 4);
     unsigned int emptyEntryLoc = 2;
-    printf("FAT Sector Empty Start: %i\n", FatSectorEmpty);
+//    printf("FAT Sector Empty Start: %i\n", FatSectorEmpty);
     do
     {
         //Read Hex at FatSector Position
@@ -664,7 +869,7 @@ unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr
         //Obtain Endian string, so we can determine if this is an empty entry.
         littleEndian = littleEndianHexStringFromTokens(hex);
         FatSectorEmptyEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-        printf("FAT Endian Empty Val: %i\n", FatSectorEmptyEndianVal);
+//        printf("FAT Endian Empty Val: %i\n", FatSectorEmptyEndianVal);
         //Deallocate hex and little Endian for FAT portion
         free(littleEndian);
         free_tokens(hex);
@@ -679,8 +884,8 @@ unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr
     } while (FatSectorEmptyEndianVal != 0);
 
     //Return data
-    printf("arr[0] : FAT Sector Empty Entry Loc: %i\n", emptyEntryLoc);
-    printf("arr[1] : FAT Sector Empty End: %i\n\n", FatSectorEmpty);
+//    printf("arr[0] : FAT Sector Empty Entry Loc: %i\n", emptyEntryLoc);
+//    printf("arr[1] : FAT Sector Empty End: %i\n\n", FatSectorEmpty);
     emptyArr[0] = emptyEntryLoc;
     emptyArr[1] = FatSectorEmpty;
     return emptyArr;
@@ -736,6 +941,62 @@ unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories
     return endClusArr;
 }
 
+unsigned int * findFatSectorInDir(const char * imgFile, unsigned int * fats, unsigned int clus){
+    tokenlist * hex;
+    char * littleEndian;
+    char * bigEndian;
+    int loc = fats[0];
+    //Do math to calculate the FAT sector we should iterate to get
+    //the right data region we should modify.
+    int FATIterateNum = 0;
+    while(loc > 15)
+    {
+        loc -= 16;
+        FATIterateNum++;
+    }
+    fats[0] = loc;
+    //Beginning Locations for FAT and Data Sector
+    unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+    unsigned int FatSectorEndianVal = 0;
+    unsigned int FatSectorDirCluster = clus;
+    // //Offset Location for N in FAT (Root = 2, 16392)
+    FatSector += clus * 4;
+
+    //Need to iterate thorugh FAT again if empty folder is in another FAT entry other than the first.
+    while(FATIterateNum != 0)
+    {
+        //Read Hex at FatSector Position
+        hex = getHex(imgFile, FatSector, 4);
+        //Obtain Endian string, so we can determine if this is the last time we should read
+        //from the FAT and search the data region.
+        littleEndian = littleEndianHexStringFromTokens(hex);
+        FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
+        //Deallocate hex and little Endian for FAT portion
+        free_tokens(hex);
+        free(littleEndian);
+
+        //Set up data for new loop, or  quit.
+        //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
+        if(FATIterateNum != 0)
+        {
+            //Need to move in FAT again.
+            FATIterateNum--;
+            //Move Dir Cluster we need to look at.
+            FatSectorDirCluster = FatSectorEndianVal;
+            //We have to loop again in the FAT
+            FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+            //New FAT Offset added
+            FatSector += FatSectorEndianVal * 4;
+        }
+        else
+        {
+            //This should be our last iteration. Do nothing.
+            printf("Last Time!\n");
+        }
+    }
+    fats[1] =  FatSectorDirCluster;
+    return fats;
+}
 //////////////////////////////////////////////////////
 // Directory List Logic //////////////
 //////////////////////////////////////////////////////
@@ -884,7 +1145,6 @@ void readDirectories(dirlist * readEntry)
         }
     }
 }
-
 int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag)
 {
     //Input Flags
@@ -895,11 +1155,14 @@ int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int 
     //Check if given char * is in our given directory
     int i = 0;
     int found = -1;
+    unsigned char name[11];
+    strcpy(name, item);
+    strncat(name, "           ", 11 - strlen(item));
     for(i; i < directories->size; i++)
     {
         //Compare only up to only strlen(item) b/c there will be spaces left from
         //reading it directly from the .img file. 
-        if(strncmp(directories->items[i]->DIR_Name, item, strlen(item)) == 0 )
+        if(strncmp(directories->items[i]->DIR_Name, name, strlen(name)) == 0 )
         {
             //Checking that the item is a directory.
             if( ((directories->items[i]->DIR_Attr & 0x10) != 0) && (flag == 2 || flag == 3))
@@ -1025,7 +1288,7 @@ int filesListIndex(filesList * openFiles, const char * item)
 //////////////////////////////////////////////////////
 tokenlist * getHex(const char * imgFile, int decStart, int size)
 {
-    printf("getHex()\n");
+   // printf("getHex()\n");
     //C-String of Bit Values and Token List of Hex Values.
     unsigned char * bitArr = malloc(sizeof(unsigned char) * size + 1);
     tokenlist * hex = new_tokenlist();
@@ -1046,7 +1309,7 @@ tokenlist * getHex(const char * imgFile, int decStart, int size)
         //Create hex string using input. Size should always be 3
         //for 2 bits and 1 null character. 
         snprintf(buffer, 3, "%02x", bitArr[i]);
-        printf("%s ", buffer);
+        //printf("%s ", buffer);
         add_token(hex, buffer);
     }
     printf("\n");
@@ -1059,7 +1322,7 @@ tokenlist * getHex(const char * imgFile, int decStart, int size)
 
 char * littleEndianHexStringFromTokens(tokenlist * hex)
 {
-    printf("littleEndianHexStringFromTokens()\n");
+    //printf("littleEndianHexStringFromTokens()\n");
     //Allocate 2 * hex->size since we store 2 hexes at each item
     char * littleEndian = malloc(sizeof(char) * hex->size * 2 + 1);
     //Initialize to get rid of garbage data
@@ -1070,7 +1333,7 @@ char * littleEndianHexStringFromTokens(tokenlist * hex)
     {
         strcat(littleEndian, hex->items[end]);
     }
-    printf("%s\n\n", littleEndian);
+    //printf("%s\n\n", littleEndian);
     return littleEndian;
 }
 

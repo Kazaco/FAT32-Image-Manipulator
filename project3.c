@@ -92,7 +92,7 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
 void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector, int begin, int size);
 unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr);
 unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories, unsigned int * endClusArr);
-unsigned int findFatSectorInDir(const char* imgFile, int loc, unsigned int clus);
+unsigned int * findFatSectorInDir(const char* imgFile, unsigned int * fats, unsigned int clus);
 
 int main(int argc, char *argv[])
 {
@@ -373,7 +373,6 @@ void running(const char * imgFile)
         else if(strcmp("mv", tokens->items[0]) == 0 && tokens->size == 3){
             int file = open(imgFile, O_WRONLY);
             unsigned int DataSector;
-            DataSector += (N - 2) * 512;
             //check if currentdir is root dir
             if(currentDirectory->CUR_Clus == 2 && strcmp(".", tokens->items[1]) == 0)
             {
@@ -411,14 +410,23 @@ void running(const char * imgFile)
                             if(index == -1)
                             {
                                 createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,1);
-                                unsigned int FatSectorDirCluster = findFatSectorInDir(imgFile, index,to->CUR_Clus);
+                                index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 2);
+                                unsigned int fats[2];
+                                unsigned int * fatsPtr;
+                                fats[0] = index;
+                                fatsPtr = findFatSectorInDir(imgFile, fats,to->CUR_Clus);
+                                unsigned int FatSectorDirCluster = fatsPtr[1];
+                                index = fatsPtr[0];
                                 DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                                 DataSector += (FatSectorDirCluster - 2) * 512;
                                 DataSector += index * 32;
                                 lseek(file, DataSector, SEEK_SET);
                                 write(file,currentDirectory->items[loc],32);
 
-                                FatSectorDirCluster = findFatSectorInDir(imgFile,loc,currentDirectory->CUR_Clus);
+                                fats[0] = loc;
+                                fatsPtr = findFatSectorInDir(imgFile,fats,currentDirectory->CUR_Clus);
+                                FatSectorDirCluster = fatsPtr[1];
+                                loc = fatsPtr[0];
                                 DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                                 DataSector += (FatSectorDirCluster - 2) * 512;
                                 DataSector += loc * 32;
@@ -456,8 +464,13 @@ void running(const char * imgFile)
                         if(index == -1)
                         {
                             createFile(imgFile,tokens->items[1],to,currentDirectory->CUR_Clus,0);
-                            N = to->CUR_Clus;
-                            unsigned int FatSectorDirCluster = findFatSectorInDir(imgFile,index,to->CUR_Clus);
+                            index = dirlistIndexOfFileOrDirectory(to, tokens->items[1], 1);
+                            unsigned int fats[2];
+                            unsigned int * fatsPtr;
+                            fats[0] = index;
+                            fatsPtr = findFatSectorInDir(imgFile, fats,to->CUR_Clus);
+                            unsigned int FatSectorDirCluster = fatsPtr[1];
+                            index = fatsPtr[0];
                             //Modify the Data Region
                             unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                             //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
@@ -467,11 +480,13 @@ void running(const char * imgFile)
 
                             lseek(file, DataSector, SEEK_SET);
                             write(file,currentDirectory->items[loc],32);
-                            N = currentDirectory->CUR_Clus;
 
                             //Do math to calculate the FAT sector we should iterate to get 
-                            //the right data region we should modify.
-                            FatSectorDirCluster = findFatSectorInDir(imgFile,loc,currentDirectory->CUR_Clus);
+                            //the right data region we should modify
+                            fats[0] = loc;
+                            fatsPtr = findFatSectorInDir(imgFile,fats,currentDirectory->CUR_Clus);
+                            FatSectorDirCluster = fatsPtr[1];
+                            loc = fatsPtr[0];
                             //Modify the Data Region
                             DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                             //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
@@ -528,67 +543,18 @@ void running(const char * imgFile)
             else if(dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], 3) != -1 && dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2], 3) == -1){
                 int loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1],3);
                 int loc1 = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[2],3);
-                N = currentDirectory->CUR_Clus;
-
-                tokenlist * hex;
-                char * littleEndian;
-                char * bigEndian;
-                //Do math to calculate the FAT sector we should iterate to get 
-                //the right data region we should modify.
-                int FATIterateNum = 0;
-                while(loc > 15)
-                {
-                    loc -= 16;
-                    FATIterateNum++;
-                }
-
-                //Beginning Locations for FAT and Data Sector
-                unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
-                unsigned int FatSectorEndianVal = 0;
-                unsigned int FatSectorDirCluster = currentDirectory->CUR_Clus;
-                // //Offset Location for N in FAT (Root = 2, 16392)
-                FatSector += currentDirectory->CUR_Clus * 4;
-
-                //Need to iterate thorugh FAT again if empty folder is in another FAT entry other than the first.
-                while(FATIterateNum != 0)
-                {
-                    //Read Hex at FatSector Position
-                    hex = getHex(imgFile, FatSector, 4);
-                    //Obtain Endian string, so we can determine if this is the last time we should read
-                    //from the FAT and search the data region.
-                    littleEndian = littleEndianHexStringFromTokens(hex);
-                    FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-                    //Deallocate hex and little Endian for FAT portion
-                    free_tokens(hex);
-                    free(littleEndian);
-
-                    //Set up data for new loop, or  quit.
-                    //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
-                    if(FATIterateNum != 0)
-                    {
-                        //Need to move in FAT again.
-                        FATIterateNum--;
-                        //Move Dir Cluster we need to look at.
-                        FatSectorDirCluster = FatSectorEndianVal;
-                        //We have to loop again in the FAT
-                        FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
-                        //New FAT Offset added
-                        FatSector += FatSectorEndianVal * 4;
-                    }
-                    else
-                    {
-                        //This should be our last iteration. Do nothing.
-                        printf("Last Time!\n");
-                    }
-                }
-
+                unsigned int fats[2];
+                unsigned int * fatsPtr;
+                fats[0] = loc;
+                fatsPtr = findFatSectorInDir(imgFile,fats,currentDirectory->CUR_Clus);
+                unsigned int FatSectorDirCluster = fatsPtr[1];
+                loc = fatsPtr[0];
                 //Modify the Data Region
                 unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                 //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
                 DataSector += (FatSectorDirCluster - 2) * 512;
                 //Offset for Empty Index Start
                 DataSector += loc * 32;
-
                 lseek(file, DataSector, SEEK_SET);
                 unsigned char name[11];
                 strcpy(name, tokens->items[2]);
@@ -975,10 +941,11 @@ unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories
     return endClusArr;
 }
 
-unsigned int findFatSectorInDir(const char * imgFile, int loc, unsigned int clus){
+unsigned int * findFatSectorInDir(const char * imgFile, unsigned int * fats, unsigned int clus){
     tokenlist * hex;
     char * littleEndian;
     char * bigEndian;
+    int loc = fats[0];
     //Do math to calculate the FAT sector we should iterate to get
     //the right data region we should modify.
     int FATIterateNum = 0;
@@ -987,7 +954,7 @@ unsigned int findFatSectorInDir(const char * imgFile, int loc, unsigned int clus
         loc -= 16;
         FATIterateNum++;
     }
-
+    fats[0] = loc;
     //Beginning Locations for FAT and Data Sector
     unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
     unsigned int FatSectorEndianVal = 0;
@@ -1027,7 +994,8 @@ unsigned int findFatSectorInDir(const char * imgFile, int loc, unsigned int clus
             printf("Last Time!\n");
         }
     }
-    return FatSectorDirCluster;
+    fats[1] =  FatSectorDirCluster;
+    return fats;
 }
 //////////////////////////////////////////////////////
 // Directory List Logic //////////////

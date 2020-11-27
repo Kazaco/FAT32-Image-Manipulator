@@ -584,12 +584,8 @@ void running(const char * imgFile)
             printf("Invalid Command Given\n");
         }
 
-        //Only deallocate if the user entered items.
-        if(tokens->size != 0)
-        {
-            free(input);
-            free_tokens(tokens);
-        }
+        free(input);
+        free_tokens(tokens);
     }
 }
 

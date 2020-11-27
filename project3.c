@@ -593,8 +593,6 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
 {
     tokenlist * hex;
     char * littleEndian;
-    char * bigEndian;
-
     //NEED COPY of this value in-case we need to delete currentdirectory list!
     int N = directories->CUR_Clus;
     unsigned int emptyFATArr[2];
@@ -641,57 +639,12 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
         index = dirlistIndexOfFileOrDirectory(directories, "", 4);
     }
 
-    //Do math to calculate the FAT sector we should iterate to get 
-    //the right data region we should modify.
-    int FATIterateNum = 0;
-    while(index > 15)
-    {
-        index -= 16;
-        FATIterateNum++;
-    }
-
-    //Beginning Locations for FAT and Data Sector
-    unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
-    unsigned int FatSectorEndianVal = 0;
-    unsigned int FatSectorDirCluster = directories->CUR_Clus;
-    // //Offset Location for N in FAT (Root = 2, 16392)
-    FatSector += directories->CUR_Clus * 4;
-    printf("Index: %i\n", index);
-    printf("How much should we iterate in FAT: %i\n", FATIterateNum);
-
-    //Need to iterate thorugh FAT again if empty folder is in another FAT entry other than the first.
-    while(FATIterateNum != 0)
-    {
-        //Read Hex at FatSector Position
-        hex = getHex(imgFile, FatSector, 4);
-        //Obtain Endian string, so we can determine if this is the last time we should read
-        //from the FAT and search the data region.
-        littleEndian = littleEndianHexStringFromTokens(hex);
-        FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-        printf("FAT Endian Val: %i\n", FatSectorEndianVal);
-        //Deallocate hex and little Endian for FAT portion
-        free_tokens(hex);
-        free(littleEndian);
-
-        //Set up data for new loop, or  quit.
-        //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
-        if(FATIterateNum != 0)
-        {
-            //Need to move in FAT again.
-            FATIterateNum--;
-            //Move Dir Cluster we need to look at.
-            FatSectorDirCluster = FatSectorEndianVal;
-            //We have to loop again in the FAT
-            FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
-            //New FAT Offset added
-            FatSector += FatSectorEndianVal * 4;
-        }
-        else
-        {
-            //This should be our last iteration. Do nothing.
-            printf("Last Time!\n");
-        }
-    }
+    unsigned int fats[2];
+    unsigned int * fatsPtr;
+    fats[0] = index;
+    fatsPtr = findFatSectorInDir(imgFile, fats, directories->CUR_Clus);
+    unsigned int FatSectorDirCluster = fatsPtr[1];
+    index = fatsPtr[0];
     printf("Data Region to Search: %i\n", FatSectorDirCluster);
 
     //Modify the Data Region
@@ -750,6 +703,8 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
         strcat(clusterHI,clusterLOW);
         unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
         //unsigned int clusterValLOW = (unsigned int)strtol(clusterLOW, NULL, 16);
+        free(clusterHI);
+        free(clusterLOW);
 
         //Create list of items
         dirlist * newDirItems = getDirectoryList(imgFile, clusterValHI);
@@ -950,7 +905,6 @@ unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories
 unsigned int * findFatSectorInDir(const char * imgFile, unsigned int * fats, unsigned int clus){
     tokenlist * hex;
     char * littleEndian;
-    char * bigEndian;
     int loc = fats[0];
     //Do math to calculate the FAT sector we should iterate to get
     //the right data region we should modify.
@@ -1039,7 +993,6 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
     //Reading Hex Values from the FAT and Data Sector
     tokenlist * hex;
     char * littleEndian;
-    char * bigEndian;
     //Store List of Directories in whatever folder given by user
     dirlist * dirs = new_dirlist();
     dirs->CUR_Clus = N;

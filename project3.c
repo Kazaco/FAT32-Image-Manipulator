@@ -135,8 +135,13 @@ void running(const char * imgFile)
         //Split User Input into Tokens
         tokenlist *tokens = get_tokens(input);
 
+        //User inputted nothing
+        if(tokens->size == 0)
+        {
+            //Do nothing.
+        }
         //Commands
-        if(strcmp("exit", tokens->items[0]) == 0 && tokens->size == 1)
+        else if(strcmp("exit", tokens->items[0]) == 0 && tokens->size == 1)
         {
             printf("Exit\n");
             free(input);
@@ -578,8 +583,13 @@ void running(const char * imgFile)
         {
             printf("Invalid Command Given\n");
         }
-        free(input);
-        free_tokens(tokens);
+
+        //Only deallocate if the user entered items.
+        if(tokens->size != 0)
+        {
+            free(input);
+            free_tokens(tokens);
+        }
     }
 }
 

@@ -93,6 +93,8 @@ void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSec
 unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr);
 unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories, unsigned int * endClusArr);
 unsigned int * findFatSectorInDir(const char* imgFile, unsigned int * fats, unsigned int clus);
+////////////////////////////////////
+int openFileExists(filesList * files, tokenlist * tokens, int flag);
 
 int main(int argc, char *argv[])
 {
@@ -579,6 +581,18 @@ void running(const char * imgFile)
             }
             close(file);
         }
+        else if(strcmp("write", tokens->items[0]) == 0 && tokens->size == 2)
+        {
+            //Check if we have a file open
+            printf("Write\n");
+            //Check that the file is open and able to be written to.
+            readFilesList(openFiles);
+            //
+            if(openFileExists(openFiles, tokens, 2) == 1)
+            {
+                printf("We will write to the file\n");
+            }            
+        }
         else
         {
             printf("Invalid Command Given\n");
@@ -587,6 +601,50 @@ void running(const char * imgFile)
         free(input);
         free_tokens(tokens);
     }
+}
+
+int openFileExists(filesList * files, tokenlist * tokens, int flag)
+{
+    //Flag:
+    // 1 - READ
+    // 2 - WRITE
+
+    //Check if given char * is in our given directory
+    int i = 0;
+    //Unlike in dirListIndex we don't need to extend the item string w/ spaces because
+    //I already cut them off when opening the file and inserting them into the filesList
+    for(i; i < files->size; i++)
+    {
+        //File was found in our list.
+        if(strncmp(files->items[i]->FILE_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
+        {
+            printf("Found\n");
+            //Check that the flags of the files->items permits what we are trying to do.
+            printf("File Mode: %s s\n", files->items[i]->FILE_Mode);
+
+            //Check if we are allowed to read the file
+            if(flag == 1 && (strcmp(files->items[i]->FILE_Mode, "r") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
+            || strcmp(files->items[i]->FILE_Mode, "wr") == 0) )
+            {
+                return 1;
+            }
+            //Check if we are allowed to write to the file
+            else if(flag == 2 && (strcmp(files->items[i]->FILE_Mode, "w") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
+            || strcmp(files->items[i]->FILE_Mode, "wr") == 0) )
+            {
+                return 1;
+            }
+            else
+            {
+                //Invalid use of function.
+                printf("Filename given is not 'opened' for %s.\n", tokens->items[0]);
+                return -1;
+            }
+        }
+    }
+    //Return index of file/directory/empty if it is found. Val = -1 if not found.
+    printf("Filename given is not an 'open' file.\n");
+    return -1;
 }
 
 void createFile(const char * imgFile, const char * filename, dirlist * directories, unsigned int previousCluster, int flag)

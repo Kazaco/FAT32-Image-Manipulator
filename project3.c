@@ -94,7 +94,7 @@ unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr
 unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories, unsigned int * endClusArr);
 unsigned int * findFatSectorInDir(const char* imgFile, unsigned int * fats, unsigned int clus);
 ////////////////////////////////////
-int openFileExists(filesList * files, tokenlist * tokens, int flag);
+int openFileIndex(filesList * files, tokenlist * tokens, int flag);
 
 int main(int argc, char *argv[])
 {
@@ -581,16 +581,141 @@ void running(const char * imgFile)
             }
             close(file);
         }
-        else if(strcmp("write", tokens->items[0]) == 0 && tokens->size == 2)
+        else if(strcmp("write", tokens->items[0]) == 0 && tokens->size == 4)
         {
             //Check if we have a file open
             printf("Write\n");
             //Check that the file is open and able to be written to.
             readFilesList(openFiles);
-            //
-            if(openFileExists(openFiles, tokens, 2) == 1)
+            //Check that the file is open and able to be written to, if it
+            //get that index from the openFiles list.
+            int openIndex = openFileIndex(openFiles, tokens, 2);
+            if(openIndex != -1)
             {
+                //Info we need to use to iterate the FAT and data region.
                 printf("We will write to the file\n");
+
+                //Check our allocation for the file
+                int fileFATAllocation = 0;
+                int fileDataAllocation = 0;
+
+                //Check how many FAT/data regions blocks are allocated for the given file. First check modulo
+                //to know how we should calculate edge cases.
+                if(openFiles->items[openIndex]->FILE_SIZE % BPB.BytsPerSec == 0 && openFiles->items[openIndex]->FILE_SIZE != 0)
+                {
+                    //Completely filled data region in last block.
+                    fileFATAllocation = openFiles->items[openIndex]->FILE_SIZE / BPB.BytsPerSec;
+                    fileDataAllocation = fileFATAllocation * 512;
+                }
+                else
+                {
+                    //Partially filled data region in last block.
+                    fileFATAllocation = (openFiles->items[openIndex]->FILE_SIZE / BPB.BytsPerSec) + 1;
+                    fileDataAllocation = fileFATAllocation * 512;
+                }
+
+                printf("Current File FAT Allocation: %i\n", fileFATAllocation);
+                printf("Current File Data Region Allocation: %i\n", fileDataAllocation);
+
+                //Check if lseek + size given by the user is greater then allocated space for chosen file. If it is
+                // we need to extend the file before we write.
+                int writeStartVal = openFiles->items[openIndex]->FILE_OFFSET; 
+                int writeEndVal = openFiles->items[openIndex]->FILE_OFFSET + atoi(tokens->items[2]);
+                printf("writeStartVal: %i\n", writeStartVal);
+                printf("writeEndVal: %i\n", writeEndVal);
+                if(writeEndVal > fileDataAllocation)
+                {
+                    //We need to extend the current file.
+                    printf("Extend the file first!");
+                }
+
+                //Writing to file
+                //Beginning Locations for FAT and Data Sector
+                unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+                unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                unsigned int bitsLeftToWrite = atoi(tokens->items[2]);
+                //Offset Location for File Cluster in FAT
+                FatSector += openFiles->items[openIndex]->FILE_FstClus * 4;
+                //Offset Location for File Cluster in Data
+                DataSector += (openFiles->items[openIndex]->FILE_FstClus - 2) * 512;
+                printf("Fat Sector Start: %i\n", FatSector);
+                printf("Data Region Start: %i\n", DataSector);
+                //Ending Vals (Use in next cluster calculation)
+                unsigned int FatSectorEndianVal = 0;
+                //Reading Hex Values from the FAT and Data Sector
+                tokenlist * hex;
+                char * littleEndian;
+                // Writing Flags / Logic
+                int foundFirstWriteLoc = -1;
+
+                do
+                {
+                    //Read the FAT/Data Region until we have written SIZE characters to the file.
+
+                    //Read Hex at FatSector Position
+                    hex = getHex(imgFile, FatSector, 4);
+                    //Obtain Endian string, so we can determine if this is the last time we should read
+                    //from the FAT and search the data region.
+                    littleEndian = littleEndianHexStringFromTokens(hex);
+                    FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
+                    printf("FAT Endian Val: %i\n", FatSectorEndianVal);
+                    //Deallocate hex and little Endian for FAT portion
+                    free_tokens(hex);
+                    free(littleEndian);
+
+                    //Calculate whether we should write to the current FAT position, or move onto the next.
+                    //Assuming start of file is like an array
+                    if(writeStartVal >= 0 && writeStartVal < 512)
+                    {
+                        //We should write to this data region until the end.
+                        printf("Writing....\n");
+                        while(writeStartVal < 512 && bitsLeftToWrite != 0)
+                        {
+                            printf("Writing At Position: %i\n", writeStartVal);
+
+                            //Open the file, we already checked that it exists. Obtain the file descriptor
+                            int file = open(imgFile, O_WRONLY);
+                            //Go to offset position in file. ~SEEK_SET = Absolute position in document.
+                            lseek(file, DataSector + writeStartVal, SEEK_SET);
+                            write(file,"J",1);
+                            close(file);
+
+                            //Move pointer for writing.
+                            writeStartVal++;
+                            bitsLeftToWrite--;
+                        }
+                        //If we have to also look at the next block, from now on we'll always start at 0.
+                        printf("Bits left: %i\n", bitsLeftToWrite);
+                        writeStartVal = 0;
+                        foundFirstWriteLoc = 1;
+                    }
+
+                    //Go to the next FAT block, untill we have written SIZE characters to the file.
+                    if(bitsLeftToWrite != 0)
+                    {
+                        printf("Need to move to next FAT block.\n");
+
+                        //We have to loop again, reset FAT/Data regions.
+                        FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+                        DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                        //New FAT Offset added
+                        FatSector += FatSectorEndianVal * 4;
+                        //New Data Sector Offset Added
+                        DataSector += (FatSectorEndianVal - 2) * 512;
+                        //New Offset for FAT
+                        printf("New FAT sector: %i\n", FatSector);
+                        printf("New Data sector: %i\n", DataSector);
+
+                        //Only change writeStart if we haven't found the first writing location.
+                        if(foundFirstWriteLoc != 1)
+                        {
+                            //Move offset of write start and end.
+                            writeStartVal -= 512;
+                            writeEndVal -= 512;
+                        }
+                    }
+                    
+                } while (bitsLeftToWrite != 0);
             }            
         }
         else
@@ -603,7 +728,7 @@ void running(const char * imgFile)
     }
 }
 
-int openFileExists(filesList * files, tokenlist * tokens, int flag)
+int openFileIndex(filesList * files, tokenlist * tokens, int flag)
 {
     //Flag:
     // 1 - READ
@@ -611,6 +736,7 @@ int openFileExists(filesList * files, tokenlist * tokens, int flag)
 
     //Check if given char * is in our given directory
     int i = 0;
+    int index = -1;
     //Unlike in dirListIndex we don't need to extend the item string w/ spaces because
     //I already cut them off when opening the file and inserting them into the filesList
     for(i; i < files->size; i++)
@@ -626,13 +752,15 @@ int openFileExists(filesList * files, tokenlist * tokens, int flag)
             if(flag == 1 && (strcmp(files->items[i]->FILE_Mode, "r") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
             || strcmp(files->items[i]->FILE_Mode, "wr") == 0) )
             {
-                return 1;
+                index = i;
+                return index;
             }
             //Check if we are allowed to write to the file
             else if(flag == 2 && (strcmp(files->items[i]->FILE_Mode, "w") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
             || strcmp(files->items[i]->FILE_Mode, "wr") == 0) )
             {
-                return 1;
+                index = i;
+                return index;
             }
             else
             {

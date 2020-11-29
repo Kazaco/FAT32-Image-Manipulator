@@ -91,7 +91,7 @@ void getBIOSParamBlock(const char * imgFile);
 void createFile(const char * imgFile, const char * filename, dirlist * directories, unsigned int previousCluster, int flag);
 void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector, int begin, int size);
 unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr);
-unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories, unsigned int * endClusArr);
+unsigned int * findEndClusEntryInFAT(const char * imgFile, unsigned int clusStart, unsigned int * endClusArr);
 unsigned int * findFatSectorInDir(const char* imgFile, unsigned int * fats, unsigned int clus);
 ////////////////////////////////////
 int openFileIndex(filesList * files, tokenlist * tokens, int flag);
@@ -627,6 +627,29 @@ void running(const char * imgFile)
                 {
                     //We need to extend the current file.
                     printf("Extend the file first!");
+
+                    // unsigned int emptyFATArr[2];
+                    // unsigned int * emptyFATptr;
+                    // unsigned int endClusterFATArr[2];
+                    // unsigned int * endClusterFATptr;
+
+                    // //No more empty entries in this directory, need to extend the FAT
+                    // printf("Must create a new FAT entry\n");
+
+                    // //Read FAT from top until we find an empty item
+                    // //arrPtr[0] : FAT Sector Empty Entry Loc
+                    // //arrPtr[1] : FAT Sector Empty End
+                    // emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
+
+                    // //endClusArr[0] : FAT Sector Clus End Loc
+                    // //endClusArr[1] : FAT Sector Clus End
+                    // endClusterFATptr = findEndClusEntryInFAT(imgFile, currentDirectory->CUR_Clus, endClusterFATArr);
+
+                    // //Create new end for current directory cluster.
+                    // // 268435448 = 0xF8FFFF0F (uint 32, little endian)
+                    // intToASCIIStringWrite(imgFile, 268435448, emptyFATptr[1], 0, 4);
+                    // //Connect old end to new end of cluster.
+                    // intToASCIIStringWrite(imgFile, emptyFATptr[0], endClusterFATArr[1], 0, 4);
                 }
 
                 //Writing to file
@@ -805,7 +828,7 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
 
         //endClusArr[0] : FAT Sector Clus End Loc
         //endClusArr[1] : FAT Sector Clus End
-        endClusterFATptr = findEndClusEntryInFAT(imgFile, directories, endClusterFATArr);
+        endClusterFATptr = findEndClusEntryInFAT(imgFile, directories->CUR_Clus, endClusterFATArr);
 
         //Create new end for current directory cluster.
         // 268435448 = 0xF8FFFF0F (uint 32, little endian)
@@ -1038,16 +1061,16 @@ unsigned int * findEmptyEntryInFAT(const char * imgFile, unsigned int * emptyArr
     return emptyArr;
 }
 
-unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories, unsigned int * endClusArr)
+unsigned int * findEndClusEntryInFAT(const char * imgFile, unsigned int clusterStart, unsigned int * endClusArr)
 {
     //Reading hex from file.
     tokenlist * hex;
     char * littleEndian;
     //Find the end of current directory cluster.
     unsigned int FatSectorEndClusEndianVal = 0;
-    unsigned int FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec + (directories->CUR_Clus * 4);
-    unsigned int FatSectorEndClusLoc = directories->CUR_Clus;
-    printf("Cluster Num: %i\n", directories->CUR_Clus);
+    unsigned int FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec + (clusterStart * 4);
+    unsigned int FatSectorEndClusLoc = clusterStart;
+    printf("Cluster Num: %i\n", clusterStart);
     printf("FAT Sector Clus Start: %i\n", FatSectorEndClus);
     printf("FAT Sector Clus Loc: %i\n", FatSectorEndClusLoc);
     do

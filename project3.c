@@ -581,17 +581,50 @@ void running(const char * imgFile)
             }
             close(file);
         }
-        else if(strcmp("write", tokens->items[0]) == 0 && tokens->size == 4)
+        else if(strcmp("write", tokens->items[0]) == 0 && tokens->size >= 4)
         {
             //Check if we have a file open
             printf("Write\n");
-            //Check that the file is open and able to be written to.
+            //Check valid input for "STRING"
+            int validString = 1;
+            if(tokens->items[3][0] != '"' || tokens->items[tokens->size - 1][strlen(tokens->items[tokens->size - 1]) - 1] != '"')
+            {
+                printf("Invalid String Format: \"STRING\"\n");
+                validString = -1;
+            }
             readFilesList(openFiles);
             //Check that the file is open and able to be written to, if it
             //get that index from the openFiles list.
             int openIndex = openFileIndex(openFiles, tokens, 2);
-            if(openIndex != -1)
+            if(openIndex != -1 && validString == 1)
             {
+                //Calculate how much memory we should allocate for the string
+                int letterCount = 0;
+                int sentenceStart = 3;
+                for(sentenceStart; sentenceStart < tokens->size; sentenceStart++)
+                {
+                    letterCount += strlen(tokens->items[sentenceStart]);
+                    //Calculate for spaces as well
+                    if(sentenceStart != tokens->size - 1)
+                    {
+                        letterCount += 1;
+                    }
+                }
+
+                //Allocate for string and merge all token items for string.
+                char * string = malloc(sizeof(char) * letterCount + 1);
+                strcpy(string, "");
+                sentenceStart = 3;
+                for(sentenceStart; sentenceStart < tokens->size; sentenceStart++)
+                {
+                    strcat(string, tokens->items[sentenceStart]);
+                    //Don't put a space after last word.
+                    if(sentenceStart != tokens->size - 1)
+                    {
+                        strcat(string, " ");
+                    }
+                }
+
                 //Info we need to use to iterate the FAT and data region.
                 printf("We will write to the file\n");
 
@@ -671,6 +704,9 @@ void running(const char * imgFile)
                 char * littleEndian;
                 // Writing Flags / Logic
                 int foundFirstWriteLoc = -1;
+                //Subtract 2 to not include " character
+                letterCount -= 2;
+                int stringPosition = 1;
 
                 do
                 {
@@ -701,7 +737,21 @@ void running(const char * imgFile)
                             int file = open(imgFile, O_WRONLY);
                             //Go to offset position in file. ~SEEK_SET = Absolute position in document.
                             lseek(file, DataSector + writeStartVal, SEEK_SET);
-                            write(file,"J",1);
+                            //What should we write to file.
+                            if(letterCount == 0)
+                            {
+                                //Size is greater than string, so we write '/0' afterwards.
+                                write(file,"\0", 1);
+                            }
+                            else
+                            {
+                                char letter = string[stringPosition];
+                                char letterString[1] = {letter};
+                                write(file, letterString, 1);
+                                //Iterate
+                                stringPosition++;
+                                letterCount--;
+                            }
                             close(file);
 
                             //Move pointer for writing.
@@ -739,6 +789,9 @@ void running(const char * imgFile)
                     }
                     
                 } while (bitsLeftToWrite != 0);
+
+                //Deallocate String used.
+                free(string);
 
                 //Modify the size values stored for file if we wrote beyond its current file size. Must change
                 //program local data and the disk itself.

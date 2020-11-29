@@ -583,8 +583,6 @@ void running(const char * imgFile)
         }
         else if(strcmp("write", tokens->items[0]) == 0 && tokens->size >= 4)
         {
-            //Check if we have a file open
-            printf("Write\n");
             //Check valid input for "STRING"
             int validString = 1;
             if(tokens->items[3][0] != '"' || tokens->items[tokens->size - 1][strlen(tokens->items[tokens->size - 1]) - 1] != '"')
@@ -592,7 +590,6 @@ void running(const char * imgFile)
                 printf("Invalid String Format: \"STRING\"\n");
                 validString = -1;
             }
-            readFilesList(openFiles);
             //Check that the file is open and able to be written to, if it
             //get that index from the openFiles list.
             int openIndex = openFileIndex(openFiles, tokens, 2);
@@ -624,9 +621,6 @@ void running(const char * imgFile)
                         strcat(string, " ");
                     }
                 }
-
-                //Info we need to use to iterate the FAT and data region.
-                printf("We will write to the file\n");
 
                 //Check our allocation for the file
                 int fileFATAllocation = 0;

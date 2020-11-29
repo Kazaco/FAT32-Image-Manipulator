@@ -621,37 +621,38 @@ void running(const char * imgFile)
                 // we need to extend the file before we write.
                 int writeStartVal = openFiles->items[openIndex]->FILE_OFFSET; 
                 int writeEndVal = openFiles->items[openIndex]->FILE_OFFSET + atoi(tokens->items[2]);
+                unsigned int emptyFATArr[2];
+                unsigned int * emptyFATptr;
+                unsigned int endClusterFATArr[2];
+                unsigned int * endClusterFATptr;
                 printf("writeStartVal: %i\n", writeStartVal);
                 printf("writeEndVal: %i\n", writeEndVal);
-                if(writeEndVal > fileDataAllocation)
+
+                //This will only run if we don't have enough allocated space.
+                while(writeEndVal > fileDataAllocation)
                 {
-                    //We need to extend the current file.
-                    printf("Extend the file first!");
+                    //Extend the file until fileDataAllocation > writeEndVal
 
-                    // unsigned int emptyFATArr[2];
-                    // unsigned int * emptyFATptr;
-                    // unsigned int endClusterFATArr[2];
-                    // unsigned int * endClusterFATptr;
-
-                    // //No more empty entries in this directory, need to extend the FAT
-                    // printf("Must create a new FAT entry\n");
-
-                    // //Read FAT from top until we find an empty item
-                    // //arrPtr[0] : FAT Sector Empty Entry Loc
-                    // //arrPtr[1] : FAT Sector Empty End
-                    // emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
+                    //Read FAT from top until we find an empty item
+                    //arrPtr[0] : FAT Sector Empty Entry Loc
+                    //arrPtr[1] : FAT Sector Empty End
+                    emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
 
                     // //endClusArr[0] : FAT Sector Clus End Loc
                     // //endClusArr[1] : FAT Sector Clus End
-                    // endClusterFATptr = findEndClusEntryInFAT(imgFile, currentDirectory->CUR_Clus, endClusterFATArr);
+                    endClusterFATptr = findEndClusEntryInFAT(imgFile, openFiles->items[openIndex]->FILE_FstClus, endClusterFATArr);
 
-                    // //Create new end for current directory cluster.
-                    // // 268435448 = 0xF8FFFF0F (uint 32, little endian)
-                    // intToASCIIStringWrite(imgFile, 268435448, emptyFATptr[1], 0, 4);
-                    // //Connect old end to new end of cluster.
-                    // intToASCIIStringWrite(imgFile, emptyFATptr[0], endClusterFATArr[1], 0, 4);
+                    //Create new end for current directory cluster.
+                    // 268435448 = 0xF8FFFF0F (uint 32, little endian)
+                    intToASCIIStringWrite(imgFile, 268435448, emptyFATptr[1], 0, 4);
+                    //Connect old end to new end of cluster.
+                    intToASCIIStringWrite(imgFile, emptyFATptr[0], endClusterFATArr[1], 0, 4);
+
+                    //Iterate changes
+                    fileDataAllocation += 512;
+                    printf("New Data Region Allocation: %i\n", fileDataAllocation);
                 }
-
+            
                 //Writing to file
                 //Beginning Locations for FAT and Data Sector
                 unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
@@ -734,12 +735,47 @@ void running(const char * imgFile)
                         {
                             //Move offset of write start and end.
                             writeStartVal -= 512;
-                            writeEndVal -= 512;
                         }
                     }
                     
                 } while (bitsLeftToWrite != 0);
-            }            
+
+                //Modify the size values stored for file if we wrote beyond its current file size. Must change
+                //program local data and the disk itself.
+                if(writeEndVal > openFiles->items[openIndex]->FILE_SIZE)
+                {
+                    // 1. Local Data (filelist) 
+                    openFiles->items[openIndex]->FILE_SIZE = writeEndVal;
+
+                    // 2. Disk Data (Assuming open will delete itself when we change directories)
+                    //We know the file will exist because we are modifying it right now, so index wont ever = -1
+                    int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], FILENAME);
+                    //Retrieve the correct FAT we should should to modify the directory.
+                    unsigned int fats[2];
+                    unsigned int * fatsPtr;
+                    fats[0] = index;
+                    fatsPtr = findFatSectorInDir(imgFile, fats, currentDirectory->CUR_Clus);
+                    unsigned int FatSectorDirCluster = fatsPtr[1];
+                    index = fatsPtr[0];
+                    printf("Data Region to Search: %i\n", FatSectorDirCluster);
+                    //Modify the Data Region
+                    unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                    //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
+                    DataSector += (FatSectorDirCluster - 2) * 512;
+                    printf("Main Data Sector Start: %i\n", DataSector);
+                    //Offset for Empty Index Start
+                    DataSector += index * 32;
+                    printf("Main Data Sector Start + Offset: %i\n", DataSector);
+                    //Modify size for file on disk
+                    intToASCIIStringWrite(imgFile, writeEndVal, DataSector + 28, 0, 4);
+
+                    //3. Local Data Current Directory
+                    //Delete the current directory so these changes will be made to local data.
+                    unsigned int N = currentDirectory->CUR_Clus;
+                    free_dirlist(currentDirectory);
+                    currentDirectory = getDirectoryList(imgFile, N);
+                }
+            }       
         }
         else
         {

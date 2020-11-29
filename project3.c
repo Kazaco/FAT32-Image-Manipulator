@@ -240,6 +240,11 @@ void running(const char * imgFile)
                 else{
                     currentDirectory = getDirectoryList(imgFile, clusterValHI);
                 }
+                //Free the open filelist if they switch directories
+                free(openFiles);
+                openFiles = new_filesList();
+
+                //Deallocate
                 free(clusterHI);
                 free(clusterLOW);   
             }
@@ -725,7 +730,7 @@ void running(const char * imgFile)
                         printf("Writing....\n");
                         while(writeStartVal < 512 && bitsLeftToWrite != 0)
                         {
-                            printf("Writing At Position: %i\n", writeStartVal);
+                            //printf("Writing At Position: %i\n", writeStartVal);
 
                             //Open the file, we already checked that it exists. Obtain the file descriptor
                             int file = open(imgFile, O_WRONLY);
@@ -822,7 +827,7 @@ void running(const char * imgFile)
                     free_dirlist(currentDirectory);
                     currentDirectory = getDirectoryList(imgFile, N);
                 }
-            }       
+            }
         }
         else
         {

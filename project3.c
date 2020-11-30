@@ -983,7 +983,7 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
     }
     else{
         //Beginning Locations for FAT and Data Sector
-        printf("Current Cluster: %i\n", directory->CUR_Clus);
+        //printf("Current Cluster: %i\n", directory->CUR_Clus);
         unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
         unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
         char * clusterHI = littleEndianHexStringFromUnsignedChar(directory->items[loc]->DIR_FstClusHI, 2);
@@ -1000,7 +1000,7 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
         //Reading Hex Values from the FAT and Data Sector
         tokenlist * hex;
         char * littleEndian;
-        printf("Current Cluster: %i\n", directory->CUR_Clus);
+        //printf("Current Cluster: %i\n", directory->CUR_Clus);
 
         do
         {
@@ -1008,7 +1008,7 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
             //the data sectors we should go to in the data region of sector size 512.
 
             //We have already positioned ourselves in the *first* position with previous math.
-            printf("FAT Sector Start: %i\n", FatSector);
+            //printf("FAT Sector Start: %i\n", FatSector);
 
             //Read Hex at FatSector Position
             hex = getHex(imgFile, FatSector, 4);
@@ -1016,12 +1016,12 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
             //from the FAT and search the data region.
             littleEndian = littleEndianHexStringFromTokens(hex);
             FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-            printf("FAT Endian Val: %i\n", FatSectorEndianVal);
+            //printf("FAT Endian Val: %i\n", FatSectorEndianVal);
             //Deallocate hex and little Endian for FAT portion
             free_tokens(hex);
             free(littleEndian);
 
-            printf("Data Sector Start: %i\n", DataSector);
+            //printf("Data Sector Start: %i\n", DataSector);
             int i = 0;
             int file = open(imgFile, O_WRONLY);
             for(i; i < 512; i++)
@@ -1042,16 +1042,17 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
                 DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                 //New FAT Offset added
                 FatSector += FatSectorEndianVal * 4;
+                intToASCIIStringWrite(imgFile,0,FatSector-4,0,4);
                 //New Data Sector Offset Added
                 DataSector += (FatSectorEndianVal - 2) * 512;
                 //New Offset for FAT
                 printf("New FAT sector: %i\n", FatSector);
-                printf("New Data sector: %i\n", DataSector);
+                //printf("New Data sector: %i\n", DataSector);
             }
             else
             {
                 //This should be our last iteration. Do nothing.
-                printf("Last Time!\n");
+                //printf("Last Time!\n");
             }
         } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
         unsigned int fats[2];
@@ -1063,22 +1064,14 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
         DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
         DataSector += (FatSectorDirCluster - 2) * 512;
         DataSector += loc * 32;
-        printf("New Data sector: %i\n", DataSector);
+        //printf("New Data sector: %i\n", DataSector);
         if(loc == directory->size -1){
-            intToASCIIStringWrite(imgFile,0,DataSector,0,1);
-            DataSector++;
-            intToASCIIStringWrite(imgFile,0,DataSector,0,3);
-            DataSector -= 33;
             intToASCIIStringWrite(imgFile,0,DataSector,0,1);
             DataSector++;
             intToASCIIStringWrite(imgFile,0,DataSector,0,3);
 
         }
         else{
-            intToASCIIStringWrite(imgFile,229,DataSector,0,1);
-            DataSector++;
-            intToASCIIStringWrite(imgFile,0,DataSector,0,3);
-            DataSector -= 33;
             intToASCIIStringWrite(imgFile,229,DataSector,0,1);
             DataSector++;
             intToASCIIStringWrite(imgFile,0,DataSector,0,3);

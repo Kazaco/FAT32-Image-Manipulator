@@ -871,9 +871,9 @@ unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories
     unsigned int FatSectorEndClusEndianVal = 0;
     unsigned int FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec + (directories->CUR_Clus * 4);
     unsigned int FatSectorEndClusLoc = directories->CUR_Clus;
-    printf("Cluster Num: %i\n", directories->CUR_Clus);
-    printf("FAT Sector Clus Start: %i\n", FatSectorEndClus);
-    printf("FAT Sector Clus Loc: %i\n", FatSectorEndClusLoc);
+    //printf("Cluster Num: %i\n", directories->CUR_Clus);
+   // printf("FAT Sector Clus Start: %i\n", FatSectorEndClus);
+    //printf("FAT Sector Clus Loc: %i\n", FatSectorEndClusLoc);
     do
     {
         //Read Hex at FatSector Position
@@ -882,7 +882,7 @@ unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories
         //from the FAT and search the data region.
         littleEndian = littleEndianHexStringFromTokens(hex);
         FatSectorEndClusEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-        printf("FAT Endian End Val: %i\n", FatSectorEndClusEndianVal);
+       // printf("FAT Endian End Val: %i\n", FatSectorEndClusEndianVal);
         //Deallocate hex and little Endian for FAT portion
         free_tokens(hex);
         free(littleEndian);
@@ -895,18 +895,18 @@ unsigned int * findEndClusEntryInFAT(const char * imgFile, dirlist * directories
             FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec;
             //New FAT Offset added
             FatSectorEndClus += FatSectorEndClusEndianVal * 4;
-            printf("New FAT sector end: %i\n", FatSectorEndClus);
+            //printf("New FAT sector end: %i\n", FatSectorEndClus);
         }
         else
         {
             //This should be our last iteration. Do nothing.
-            printf("Last Time!\n");
+            //printf("Last Time!\n");
         }
     
     } while ((FatSectorEndClusEndianVal < 268435448 || FatSectorEndClusEndianVal > 4294967295) && FatSectorEndClusEndianVal != 0);
 
-    printf("endClusArr[0] : FAT Sector Clus End Loc: %i\n", FatSectorEndClusLoc);
-    printf("endClusArr[1] : FAT Sector Clus End: %i\n", FatSectorEndClus);
+    //printf("endClusArr[0] : FAT Sector Clus End Loc: %i\n", FatSectorEndClusLoc);
+    //printf("endClusArr[1] : FAT Sector Clus End: %i\n", FatSectorEndClus);
     endClusArr[0] = FatSectorEndClusLoc;
     endClusArr[1] = FatSectorEndClus;
     return endClusArr;
@@ -961,7 +961,7 @@ unsigned int * findFatSectorInDir(const char * imgFile, unsigned int * fats, uns
         else
         {
             //This should be our last iteration. Do nothing.
-            printf("Last Time!\n");
+            //printf("Last Time!\n");
         }
     }
     fats[1] =  FatSectorDirCluster;
@@ -989,7 +989,9 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
         char * clusterHI = littleEndianHexStringFromUnsignedChar(directory->items[loc]->DIR_FstClusHI, 2);
         char * clusterLOW = littleEndianHexStringFromUnsignedChar(directory->items[loc]->DIR_FstClusLO, 2);
         strcat(clusterHI,clusterLOW);
+        free(clusterLOW);
         unsigned int N = (unsigned int)strtol(clusterHI, NULL, 16);
+        free(clusterHI);
         //Offset Location for N in FAT (Root = 2, 16392)
         FatSector += N * 4;
         //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
@@ -1016,12 +1018,12 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
             //from the FAT and search the data region.
             littleEndian = littleEndianHexStringFromTokens(hex);
             FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-            //printf("FAT Endian Val: %i\n", FatSectorEndianVal);
+            printf("FAT Endian Val: %i\n", FatSectorEndianVal);
             //Deallocate hex and little Endian for FAT portion
             free_tokens(hex);
             free(littleEndian);
 
-            //printf("Data Sector Start: %i\n", DataSector);
+            printf("Fat Sector Start: %i\n", FatSector);
             int i = 0;
             int file = open(imgFile, O_WRONLY);
             for(i; i < 512; i++)
@@ -1032,6 +1034,9 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
                 DataSector += 1;
             }
             close(file);
+            if(N != 0){
+                intToASCIIStringWrite(imgFile,0,FatSector,0,4);
+            }
 
             //Set up data for new loop, or  quit.
             //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
@@ -1042,7 +1047,6 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
                 DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                 //New FAT Offset added
                 FatSector += FatSectorEndianVal * 4;
-                intToASCIIStringWrite(imgFile,0,FatSector-4,0,4);
                 //New Data Sector Offset Added
                 DataSector += (FatSectorEndianVal - 2) * 512;
                 //New Offset for FAT

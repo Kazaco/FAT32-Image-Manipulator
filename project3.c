@@ -978,7 +978,7 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
             printf("File is a directory\n");
         }
         else{
-            printf("File does not exist");
+            printf("File does not exist\n");
         }
     }
     else{
@@ -1066,12 +1066,23 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
         printf("New Data sector: %i\n", DataSector);
         if(loc == directory->size -1){
             intToASCIIStringWrite(imgFile,0,DataSector,0,1);
+            DataSector++;
+            intToASCIIStringWrite(imgFile,0,DataSector,0,3);
+            DataSector -= 33;
+            intToASCIIStringWrite(imgFile,0,DataSector,0,1);
+            DataSector++;
+            intToASCIIStringWrite(imgFile,0,DataSector,0,3);
 
         }
         else{
             intToASCIIStringWrite(imgFile,229,DataSector,0,1);
+            DataSector++;
+            intToASCIIStringWrite(imgFile,0,DataSector,0,3);
+            DataSector -= 33;
+            intToASCIIStringWrite(imgFile,229,DataSector,0,1);
+            DataSector++;
+            intToASCIIStringWrite(imgFile,0,DataSector,0,3);
         }
-//        close(file);
     }
 
 }

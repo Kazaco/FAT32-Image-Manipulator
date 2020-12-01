@@ -588,14 +588,14 @@ void running(const char * imgFile)
             close(file);
         }
 
-        else if(strcmp("rm", tokens->items[0]) == 0 && tokens->size == 2){
+        else if(strcmp("rm", tokens->items[0]) == 0 && tokens->size == 2) {
             removeFile(imgFile, currentDirectory, tokens->items[1]);
-            if(currentDirectory->CUR_Clus == 2){
+            if (currentDirectory->CUR_Clus == 2) {
                 currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
-            }
-            else{
+            } else {
                 currentDirectory = getDirectoryList(imgFile, currentDirectory->CUR_Clus);
-
+            }
+        }
         else if(strcmp("write", tokens->items[0]) == 0 && tokens->size >= 4)
         {
             //Check valid input for "STRING"
@@ -838,6 +838,10 @@ void running(const char * imgFile)
                     currentDirectory = getDirectoryList(imgFile, N);
                 }
             }
+        }
+        else if(strcmp("cp", tokens->items[0]) == 0 && tokens->size >= 3)
+        {
+
         }
         else
         {
@@ -1167,8 +1171,8 @@ unsigned int * findEndClusEntryInFAT(const char * imgFile, unsigned int clusterS
     //Find the end of current directory cluster.
     unsigned int FatSectorEndClusEndianVal = 0;
 
-    unsigned int FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec + (directories->CUR_Clus * 4);
-    unsigned int FatSectorEndClusLoc = directories->CUR_Clus;
+    unsigned int FatSectorEndClus = BPB.RsvdSecCnt * BPB.BytsPerSec + (clusterStart * 4);
+    unsigned int FatSectorEndClusLoc = clusterStart;
     //printf("Cluster Num: %i\n", directories->CUR_Clus);
    // printf("FAT Sector Clus Start: %i\n", FatSectorEndClus);
     //printf("FAT Sector Clus Loc: %i\n", FatSectorEndClusLoc);

@@ -839,6 +839,22 @@ void running(const char * imgFile)
                 }
             }
         }
+        else if(strcmp("rmdir", tokens->items[0]) == 0 && tokens->size >= 2)
+        {
+            int loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1],3);
+            if( loc = -1){
+                printf("DIRNAME does not exist\n");
+            }
+            else{
+                loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1],2);
+                if(loc =+ -1){
+                    printf("DIRNAME is not a directory\n");
+                }
+                else{
+
+                }
+            }
+        }
         else
         {
             printf("Invalid Command Given\n");

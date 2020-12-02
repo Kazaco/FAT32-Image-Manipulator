@@ -922,7 +922,6 @@ void running(const char * imgFile)
                         tokenlist * hex;
                         char * littleEndian;
                         unsigned int lo = emptyFATptr[0];
-                        unsigned int hi;
                         unsigned int * emptyFATptr1 = findEmptyEntryInFAT(imgFile, emptyFATArr1);
                         intToASCIIStringWrite(imgFile, emptyFATptr1[0], emptyFATptr[1], 0, 4);
                         emptyFATptr = emptyFATptr1;
@@ -990,7 +989,6 @@ void running(const char * imgFile)
                         }
                         else
                         {
-                            hi = emptyFATptr[0];
                             intToASCIIStringWrite(imgFile, 268435448, emptyFATptr[1], 0, 4);
                             //This should be our last iteration. Do nothing.
                             //printf("Last Time!\n");
@@ -1028,9 +1026,7 @@ void running(const char * imgFile)
                     intToASCIIStringWrite(imgFile, 32, DataSector + 11, 0, 1);
                     // Write cluster of file to disk
                     //HI
-                    printf("HI:%d\n",hi);
-                    printf("lo:%d\n",lo);
-                    intToASCIIStringWrite(imgFile, hi, DataSector + 20, 0, 2);
+                    intToASCIIStringWrite(imgFile, lo, DataSector + 20, 2, 2);
                     //LOW
                     intToASCIIStringWrite(imgFile, lo, DataSector + 26, 0, 2);
                     close(file);
@@ -1123,7 +1119,6 @@ void running(const char * imgFile)
                     tokenlist * hex;
                     char * littleEndian;
                     unsigned int lo = emptyFATptr[0];
-                    unsigned int hi;
                     unsigned int * emptyFATptr1 = findEmptyEntryInFAT(imgFile, emptyFATArr1);
                     intToASCIIStringWrite(imgFile, emptyFATptr1[0], emptyFATptr[1], 0, 4);
                     emptyFATptr = emptyFATptr1;
@@ -1191,7 +1186,6 @@ void running(const char * imgFile)
                         }
                         else
                         {
-                            hi = emptyFATptr[0];
                             intToASCIIStringWrite(imgFile, 268435448, emptyFATptr[1], 0, 4);
                             //This should be our last iteration. Do nothing.
                             //printf("Last Time!\n");
@@ -1229,9 +1223,7 @@ void running(const char * imgFile)
                     intToASCIIStringWrite(imgFile, 32, DataSector + 11, 0, 1);
                     // Write cluster of file to disk
                     //HI
-                    printf("HI:%d\n",hi);
-                    printf("lo:%d\n",lo);
-                    intToASCIIStringWrite(imgFile, hi, DataSector + 20, 0, 2);
+                    intToASCIIStringWrite(imgFile, lo, DataSector + 20, 2, 2);
                     //LOW
                     intToASCIIStringWrite(imgFile, lo, DataSector + 26, 0, 2);
                     close(file);

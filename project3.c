@@ -1484,6 +1484,76 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
           printf("Last Time!\n");
         }
     } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
+
+    //Allocate Empty files already given by fat32.img 
+    int i = 0;
+    for (i; i < dirs->size; i++)
+    {
+        //Test the files we found in dirs. Allocate FAT space to the file if it doesn't have a cluster value.
+
+        //Empty File leading byte = E5 or 00
+        //Note: uint8 0 = 0, uint8 E5 = 229
+        if(dirs->items[i]->DIR_Name[0] != 0 && dirs->items[i]->DIR_Name[0] != 229)
+        {
+            //Check if LONGFILE is one of our entries.
+            //LONGFILE Byte is not:
+            // 1. ATTR_DIRECTORY 0x10 = 16
+            // 2. ATTR_ARCHIVE 0x20 = 32
+            if( (dirs->items[i]->DIR_Attr & 0x10) != 0 || (dirs->items[i]->DIR_Attr & 0x20) != 0)
+            {
+                //Only files can be unallocated.
+                if((dirs->items[i]->DIR_Attr & 0x20) != 0)
+                {
+                    //Check if the file has 0 clusters allocated.
+
+                    //Calculate cluster value of DIRNAME
+                    char * clusterHI = littleEndianHexStringFromUnsignedChar(dirs->items[i]->DIR_FstClusHI, 2);
+                    char * clusterLOW = littleEndianHexStringFromUnsignedChar(dirs->items[i]->DIR_FstClusLO, 2);
+                    strcat(clusterHI,clusterLOW);
+                    unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                    free(clusterHI);
+                    free(clusterLOW);
+                    
+                    if(clusterValHI == 0)
+                    {
+                        unsigned int emptyFATArr[2];
+                        unsigned int * emptyFATptr;
+                        printf("(file) %s (NEEDS ALLOCATION): %i\n", dirs->items[i]->DIR_Name, clusterValHI);
+
+                        //Need to create FAT entry for this file.
+                        printf("Must create a new FAT entry\n");
+                        int index = dirlistIndexOfFileOrDirectory(dirs, dirs->items[i]->DIR_Name, FILENAME);
+                        printf("Index: %i", index);
+
+                        //Read FAT from top until we find an empty item
+                        //arrPtr[0] : FAT Sector Empty Entry Loc
+                        //arrPtr[1] : FAT Sector Empty End
+                        // emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
+                        // printf("Empty Entry Loc: %i\n", emptyFATptr[0]);
+                        // printf("Empty Entry End: %i\n", emptyFATptr[1]);
+
+                        unsigned int fats[2];
+                        unsigned int * fatsPtr;
+                        fats[0] = index;
+                        fatsPtr = findFatSectorInDir(imgFile, fats, dirs->CUR_Clus);
+                        unsigned int FatSectorDirCluster = fatsPtr[1];
+                        index = fatsPtr[0];
+                        printf("Data Region to Search: %i\n", FatSectorDirCluster);
+
+                        //Modify the Data Region
+                        unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                        //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
+                        DataSector += (FatSectorDirCluster - 2) * 512;
+                        printf("Main Data Sector Start: %i\n", DataSector);
+                        //Offset for Empty Index Start
+                        DataSector += index * 32;
+                        printf("Main Data Sector Start + Offset: %i\n", DataSector);
+
+                    }
+                }
+            }
+        }
+    }
     
     return dirs;
 }
@@ -1541,9 +1611,18 @@ int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int 
     int found = -1;
     unsigned char name[11];
     strcpy(name, item);
-    strncat(name, "           ", 11 - strlen(item));
+    int j = strlen(item);
+    for(j; j < 11; j++)
+    {
+        strcat(name, " ");
+    }
+    //strncat(name, "           ", 11 - strlen(item));
     for(i; i < directories->size; i++)
     {
+        // printf("%s .\n", name);
+        // printf("%i\n", strlen(name));
+        // printf("%s .\n", directories->items[i]->DIR_Name);
+        // printf("%i\n", strlen(directories->items[i]->DIR_Name));
         //Compare only up to only strlen(item) b/c there will be spaces left from
         //reading it directly from the .img file. 
         if(strncmp(directories->items[i]->DIR_Name, name, strlen(name)) == 0 )

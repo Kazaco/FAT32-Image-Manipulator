@@ -843,7 +843,7 @@ void running(const char * imgFile)
         else if(strcmp("cp", tokens->items[0]) == 0 && tokens->size >= 3) {
             int loc = -1;
             int loc1 = -1;
-            loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1],3);
+            loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1],1);
             loc1 = dirlistIndexOfFileOrDirectory(currentDirectory,tokens->items[2],3);
             //Filename not in current directory
             if(loc == -1){

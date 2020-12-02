@@ -1029,7 +1029,7 @@ void running(const char * imgFile)
                     intToASCIIStringWrite(imgFile, lo, DataSector + 20, 2, 2);
                     //LOW
                     intToASCIIStringWrite(imgFile, lo, DataSector + 26, 0, 2);
-                    intToASCIIStringWrite(imgFile,(unsigned int)strtol(littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc]->DIR_FileSize,2), NULL, 16) , DataSector + 28, 0, 4);
+                    intToASCIIStringWrite(imgFile,(unsigned int)strtol(littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc]->DIR_FileSize,4), NULL, 16) , DataSector + 28, 0, 4);
 
                     close(file);
                     currentDirectory = getDirectoryList(imgFile,currentDirectory->CUR_Clus);
@@ -1228,7 +1228,7 @@ void running(const char * imgFile)
                     intToASCIIStringWrite(imgFile, lo, DataSector + 20, 2, 2);
                     //LOW
                     intToASCIIStringWrite(imgFile, lo, DataSector + 26, 0, 2);
-                    intToASCIIStringWrite(imgFile,(unsigned int)strtol(littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc]->DIR_FileSize,2), NULL, 16) , DataSector + 28, 0, 4);
+                    intToASCIIStringWrite(imgFile,(unsigned int)strtol(littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc]->DIR_FileSize,4), NULL, 16) , DataSector + 28, 0, 4);
                     close(file);
                     to = getDirectoryList(imgFile,to->CUR_Clus);
                 }

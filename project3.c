@@ -146,7 +146,7 @@ void running(const char * imgFile)
         //Commands
         else if(strcmp("exit", tokens->items[0]) == 0 && tokens->size == 1)
         {
-            printf("Exit\n");
+            // printf("Exit\n");
             free(input);
             free_dirlist(currentDirectory);
             free_filesList(openFiles);
@@ -657,8 +657,8 @@ void running(const char * imgFile)
                     fileDataAllocation = fileFATAllocation * 512;
                 }
 
-                printf("Current File FAT Allocation: %i\n", fileFATAllocation);
-                printf("Current File Data Region Allocation: %i\n", fileDataAllocation);
+                // printf("Current File FAT Allocation: %i\n", fileFATAllocation);
+                // printf("Current File Data Region Allocation: %i\n", fileDataAllocation);
 
                 //Check if lseek + size given by the user is greater then allocated space for chosen file. If it is
                 // we need to extend the file before we write.
@@ -668,8 +668,8 @@ void running(const char * imgFile)
                 unsigned int * emptyFATptr;
                 unsigned int endClusterFATArr[2];
                 unsigned int * endClusterFATptr;
-                printf("writeStartVal: %i\n", writeStartVal);
-                printf("writeEndVal: %i\n", writeEndVal);
+                // printf("writeStartVal: %i\n", writeStartVal);
+                // printf("writeEndVal: %i\n", writeEndVal);
 
                 //This will only run if we don't have enough allocated space.
                 while(writeEndVal > fileDataAllocation)
@@ -693,7 +693,7 @@ void running(const char * imgFile)
 
                     //Iterate changes
                     fileDataAllocation += 512;
-                    printf("New Data Region Allocation: %i\n", fileDataAllocation);
+                    // printf("New Data Region Allocation: %i\n", fileDataAllocation);
                 }
             
                 //Writing to file
@@ -705,8 +705,8 @@ void running(const char * imgFile)
                 FatSector += openFiles->items[openIndex]->FILE_FstClus * 4;
                 //Offset Location for File Cluster in Data
                 DataSector += (openFiles->items[openIndex]->FILE_FstClus - 2) * 512;
-                printf("Fat Sector Start: %i\n", FatSector);
-                printf("Data Region Start: %i\n", DataSector);
+                // printf("Fat Sector Start: %i\n", FatSector);
+                // printf("Data Region Start: %i\n", DataSector);
                 //Ending Vals (Use in next cluster calculation)
                 unsigned int FatSectorEndianVal = 0;
                 //Reading Hex Values from the FAT and Data Sector
@@ -728,7 +728,7 @@ void running(const char * imgFile)
                     //from the FAT and search the data region.
                     littleEndian = littleEndianHexStringFromTokens(hex);
                     FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-                    printf("FAT Endian Val: %i\n", FatSectorEndianVal);
+                    // printf("FAT Endian Val: %i\n", FatSectorEndianVal);
                     //Deallocate hex and little Endian for FAT portion
                     free_tokens(hex);
                     free(littleEndian);
@@ -738,7 +738,7 @@ void running(const char * imgFile)
                     if(writeStartVal >= 0 && writeStartVal < 512)
                     {
                         //We should write to this data region until the end.
-                        printf("Writing....\n");
+                        // printf("Writing....\n");
                         while(writeStartVal < 512 && bitsLeftToWrite != 0)
                         {
                             //printf("Writing At Position: %i\n", writeStartVal);
@@ -769,7 +769,7 @@ void running(const char * imgFile)
                             bitsLeftToWrite--;
                         }
                         //If we have to also look at the next block, from now on we'll always start at 0.
-                        printf("Bits left: %i\n", bitsLeftToWrite);
+                        // printf("Bits left: %i\n", bitsLeftToWrite);
                         writeStartVal = 0;
                         foundFirstWriteLoc = 1;
                     }
@@ -777,7 +777,7 @@ void running(const char * imgFile)
                     //Go to the next FAT block, untill we have written SIZE characters to the file.
                     if(bitsLeftToWrite != 0)
                     {
-                        printf("Need to move to next FAT block.\n");
+                        // printf("Need to move to next FAT block.\n");
 
                         //We have to loop again, reset FAT/Data regions.
                         FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
@@ -787,8 +787,8 @@ void running(const char * imgFile)
                         //New Data Sector Offset Added
                         DataSector += (FatSectorEndianVal - 2) * 512;
                         //New Offset for FAT
-                        printf("New FAT sector: %i\n", FatSector);
-                        printf("New Data sector: %i\n", DataSector);
+                        // printf("New FAT sector: %i\n", FatSector);
+                        // printf("New Data sector: %i\n", DataSector);
 
                         //Only change writeStart if we haven't found the first writing location.
                         if(foundFirstWriteLoc != 1)
@@ -820,15 +820,15 @@ void running(const char * imgFile)
                     fatsPtr = findFatSectorInDir(imgFile, fats, currentDirectory->CUR_Clus);
                     unsigned int FatSectorDirCluster = fatsPtr[1];
                     index = fatsPtr[0];
-                    printf("Data Region to Search: %i\n", FatSectorDirCluster);
+                    // printf("Data Region to Search: %i\n", FatSectorDirCluster);
                     //Modify the Data Region
                     unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
                     //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
                     DataSector += (FatSectorDirCluster - 2) * 512;
-                    printf("Main Data Sector Start: %i\n", DataSector);
+                    // printf("Main Data Sector Start: %i\n", DataSector);
                     //Offset for Empty Index Start
                     DataSector += index * 32;
-                    printf("Main Data Sector Start + Offset: %i\n", DataSector);
+                    // printf("Main Data Sector Start + Offset: %i\n", DataSector);
                     //Modify size for file on disk
                     intToASCIIStringWrite(imgFile, writeEndVal, DataSector + 28, 0, 4);
 
@@ -1390,9 +1390,9 @@ int openFileIndex(filesList * files, tokenlist * tokens, int flag)
         //File was found in our list.
         if(strncmp(files->items[i]->FILE_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
         {
-            printf("Found\n");
+            // printf("Found\n");
             //Check that the flags of the files->items permits what we are trying to do.
-            printf("File Mode: %s s\n", files->items[i]->FILE_Mode);
+            // printf("File Mode: %s s\n", files->items[i]->FILE_Mode);
 
             //Check if we are allowed to read the file
             if(flag == 1 && (strcmp(files->items[i]->FILE_Mode, "r") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
@@ -1437,12 +1437,12 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     if(index != -1)
     {
         //We found an empty entry. We don't need to extend the FAT region for this cluster.
-        printf("We good\n");
+        // printf("We good\n");
     }
     else
     {
         //No more empty entries in this directory, need to extend the FAT
-        printf("Must create a new FAT entry\n");
+        // printf("Must create a new FAT entry\n");
 
         //Read FAT from top until we find an empty item
         //arrPtr[0] : FAT Sector Empty Entry Loc
@@ -1477,16 +1477,16 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
     fatsPtr = findFatSectorInDir(imgFile, fats, directories->CUR_Clus);
     unsigned int FatSectorDirCluster = fatsPtr[1];
     index = fatsPtr[0];
-    printf("Data Region to Search: %i\n", FatSectorDirCluster);
+    // printf("Data Region to Search: %i\n", FatSectorDirCluster);
 
     //Modify the Data Region
     unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
     //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
     DataSector += (FatSectorDirCluster - 2) * 512;
-    printf("Main Data Sector Start: %i\n", DataSector);
+    // printf("Main Data Sector Start: %i\n", DataSector);
     //Offset for Empty Index Start
     DataSector += index * 32;
-    printf("Main Data Sector Start + Offset: %i\n", DataSector);
+    // printf("Main Data Sector Start + Offset: %i\n", DataSector);
 
     //Allocate for file cluster in FAT
     emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
@@ -1842,12 +1842,12 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
             //from the FAT and search the data region.
             littleEndian = littleEndianHexStringFromTokens(hex);
             FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-            printf("FAT Endian Val: %i\n", FatSectorEndianVal);
+            // printf("FAT Endian Val: %i\n", FatSectorEndianVal);
             //Deallocate hex and little Endian for FAT portion
             free_tokens(hex);
             free(littleEndian);
 
-            printf("Fat Sector Start: %i\n", FatSector);
+            // printf("Fat Sector Start: %i\n", FatSector);
             int i = 0;
             int file = open(imgFile, O_WRONLY);
             for(i; i < 512; i++)
@@ -1874,7 +1874,7 @@ void removeFile(const char * imgFile, dirlist * directory, const char * filename
                 //New Data Sector Offset Added
                 DataSector += (FatSectorEndianVal - 2) * 512;
                 //New Offset for FAT
-                printf("New FAT sector: %i\n", FatSector);
+                // printf("New FAT sector: %i\n", FatSector);
                 //printf("New Data sector: %i\n", DataSector);
             }
             else
@@ -1947,7 +1947,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
     //Store List of Directories in whatever folder given by user
     dirlist * dirs = new_dirlist();
     dirs->CUR_Clus = N;
-    printf("Current Cluster: %i\n", dirs->CUR_Clus);
+    // printf("Current Cluster: %i\n", dirs->CUR_Clus);
 
     do
     {
@@ -1955,7 +1955,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
         //the data sectors we should go to in the data region of sector size 512.
 
         //We have already positioned ourselves in the *first* position with previous math.
-        printf("FAT Sector Start: %i\n", FatSector);
+        // printf("FAT Sector Start: %i\n", FatSector);
 
         //Read Hex at FatSector Position
         hex = getHex(imgFile, FatSector, 4);
@@ -1963,12 +1963,12 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
         //from the FAT and search the data region.
         littleEndian = littleEndianHexStringFromTokens(hex);
         FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-        printf("FAT Endian Val: %i\n", FatSectorEndianVal);
+        // printf("FAT Endian Val: %i\n", FatSectorEndianVal);
         //Deallocate hex and little Endian for FAT portion
         free_tokens(hex);
         free(littleEndian);
 
-        printf("Data Sector Start: %i\n", DataSector);
+        // printf("Data Sector Start: %i\n", DataSector);
         //Read Hex at Data Sector Position. We do this 16 times b/c a file size is 32 and
         //512 / 32 is 16. There can be at most 16 files in 1 sector.
         int i = 0;
@@ -2001,13 +2001,13 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
             //New Data Sector Offset Added
             DataSector += (FatSectorEndianVal - 2) * 512;
             //New Offset for FAT
-            printf("New FAT sector: %i\n", FatSector);
-            printf("New Data sector: %i\n", DataSector);
+            // printf("New FAT sector: %i\n", FatSector);
+            // printf("New Data sector: %i\n", DataSector);
         }
         else
         {
           //This should be our last iteration. Do nothing.
-          printf("Last Time!\n");
+        //   printf("Last Time!\n");
         }
     } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
 
@@ -2119,13 +2119,13 @@ void readDirectories(dirlist * readEntry)
             }
             else
             {
-                printf("File we don't care about.\n");
+                // printf("File we don't care about.\n");
             }
         }
         else
         {
             //Empty File stored in readEntry
-            printf("Empty.\n");
+            // printf("Empty.\n");
         }
     }
 }
@@ -2366,7 +2366,7 @@ char * bigEndianHexString(tokenlist * hex)
 
 void getBIOSParamBlock(const char * imgFile)
 {
-    printf("=== Info ===\n");
+    // printf("=== Info ===\n");
     tokenlist * hex;
     char * littleEndian;
 
@@ -2374,61 +2374,61 @@ void getBIOSParamBlock(const char * imgFile)
     hex = getHex(imgFile, 11, 2);
     littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.BytsPerSec = (unsigned int)strtol(littleEndian, NULL, 16);
-    printf("Bytes Per Sector: %d\n", BPB.BytsPerSec);
+    // printf("Bytes Per Sector: %d\n", BPB.BytsPerSec);
     free_tokens(hex);
     free(littleEndian);
-    printf("=======\n");
+    // printf("=======\n");
 
     //Calculate Sectors per Cluster
     hex = getHex(imgFile, 13, 1);
     littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.SecPerClus = (unsigned int)strtol(littleEndian, NULL, 16);
-    printf("Sectors per Cluster: %d\n", BPB.SecPerClus);
+    // printf("Sectors per Cluster: %d\n", BPB.SecPerClus);
     free_tokens(hex);
     free(littleEndian);
-    printf("=======\n");
+    // printf("=======\n");
 
     //Calculate Reserved Sector Count
     hex = getHex(imgFile, 14, 2);
     littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.RsvdSecCnt = (unsigned int)strtol(littleEndian, NULL, 16);
-    printf("Reserved Sector Count: %d\n", BPB.RsvdSecCnt);
+    // printf("Reserved Sector Count: %d\n", BPB.RsvdSecCnt);
     free_tokens(hex);
     free(littleEndian);
-    printf("=======\n");
+    // printf("=======\n");
 
     //Calculate number of FATs
     hex = getHex(imgFile, 16, 1);
     littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.NumFATs = (unsigned int)strtol(littleEndian, NULL, 16);
-    printf("Number of FATs: %d\n", BPB.NumFATs);
+    // printf("Number of FATs: %d\n", BPB.NumFATs);
     free_tokens(hex);
     free(littleEndian);
-    printf("=======\n");
+    // printf("=======\n");
 
     //Calculate total sectors
     hex = getHex(imgFile, 32, 4);
     littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.TotSec32 = (unsigned int)strtol(littleEndian, NULL, 16);
-    printf("Total Sectors: %d\n", BPB.TotSec32);
+    // printf("Total Sectors: %d\n", BPB.TotSec32);
     free_tokens(hex);
     free(littleEndian);
-    printf("=======\n");
+    // printf("=======\n");
 
     //Calculate FAT size
     hex = getHex(imgFile, 36, 4);
     littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.FATSz32 = (unsigned int)strtol(littleEndian, NULL, 16);
-    printf("FAT size: %d\n", BPB.FATSz32);
+    // printf("FAT size: %d\n", BPB.FATSz32);
     free_tokens(hex);
     free(littleEndian);
-    printf("=======\n");
+    // printf("=======\n");
 
     //Calculate Root Cluster
     hex = getHex(imgFile, 44, 4);
     littleEndian = littleEndianHexStringFromTokens(hex);
     BPB.RootClus = (unsigned int)strtol(littleEndian, NULL, 16);
-    printf("Root Cluster: %d\n", BPB.RootClus);
+    // printf("Root Cluster: %d\n", BPB.RootClus);
     free_tokens(hex);
     free(littleEndian);
 }

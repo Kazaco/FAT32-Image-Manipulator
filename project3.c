@@ -1060,8 +1060,8 @@ void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSec
     //values greater than 4 million here.
     unsigned char hexString[9];
     sprintf(hexString, "%08x", value);
-    printf("int: %i\n", value);
-    printf("hex: %s\n", hexString);
+    // printf("int: %i\n", value);
+    // printf("hex: %s\n", hexString);
 
     //Read this hex string string in little endian format.
     // OFFSET MATH:
@@ -1085,13 +1085,13 @@ void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSec
         hexByte[2] = '\0';
         hexByte[1] = hexString[i];
         hexByte[0] = hexString[i - 1];
-        printf("Hex %i: %s\n", i, hexByte);
+        //printf("Hex %i: %s\n", i, hexByte);
 
         //ASCII decimal value needed
         unsigned int decASCII = (unsigned int)strtol(hexByte, NULL, 16);
-        printf("ASCII Decimal: %i\n", decASCII);
+        //printf("ASCII Decimal: %i\n", decASCII);
         unsigned char charASCII = (unsigned char ) decASCII;
-        printf("ASCII Char: %c\n", charASCII);
+        //printf("ASCII Char: %c\n", charASCII);
 
         //Unsigned Char to array so we can write to file
         char stringASCII[2];
@@ -1100,7 +1100,7 @@ void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSec
 
         //Open the file, we already checked that it exists. Obtain the file descriptor
         int file = open(imgFile, O_WRONLY);
-        printf("file: %i\n", file);
+        //printf("file: %i\n", file);
         //Go to offset position in file. ~SEEK_SET = Absolute position in document.
         lseek(file, DataSector, SEEK_SET);
         //Read from the file 'size' number of bits from decimal position given.
@@ -1418,6 +1418,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
     //Reading Hex Values from the FAT and Data Sector
     tokenlist * hex;
     char * littleEndian;
+    int flag = 0;
     //Store List of Directories in whatever folder given by user
     dirlist * dirs = new_dirlist();
     dirs->CUR_Clus = N;
@@ -1484,8 +1485,82 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
           printf("Last Time!\n");
         }
     } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
-    
-    return dirs;
+
+    //Allocate Empty files already given by fat32.img 
+    int i = 0;
+    for (i; i < dirs->size; i++)
+    {
+        //Test the files we found in dirs. Allocate FAT space to the file if it doesn't have a cluster value.
+
+        //Empty File leading byte = E5 or 00
+        //Note: uint8 0 = 0, uint8 E5 = 229
+        if(dirs->items[i]->DIR_Name[0] != 0 && dirs->items[i]->DIR_Name[0] != 229)
+        {
+            //Check if LONGFILE is one of our entries.
+            //LONGFILE Byte is not:
+            // 1. ATTR_DIRECTORY 0x10 = 16
+            // 2. ATTR_ARCHIVE 0x20 = 32
+            if( (dirs->items[i]->DIR_Attr & 0x10) != 0 || (dirs->items[i]->DIR_Attr & 0x20) != 0)
+            {
+                //Only files can be unallocated.
+                if((dirs->items[i]->DIR_Attr & 0x20) != 0)
+                {
+                    //Check if the file has 0 clusters allocated.
+
+                    //Calculate cluster value of DIRNAME
+                    char * clusterHI = littleEndianHexStringFromUnsignedChar(dirs->items[i]->DIR_FstClusHI, 2);
+                    char * clusterLOW = littleEndianHexStringFromUnsignedChar(dirs->items[i]->DIR_FstClusLO, 2);
+                    strcat(clusterHI,clusterLOW);
+                    unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
+                    free(clusterHI);
+                    free(clusterLOW);
+                    
+                    if(clusterValHI == 0)
+                    {
+                        unsigned int emptyFATArr[2];
+                        unsigned int * emptyFATptr;
+                        //Need to create FAT entry for this file.
+                        int index = dirlistIndexOfFileOrDirectory(dirs, dirs->items[i]->DIR_Name, FILENAME);
+                        //Read FAT from top until we find an empty item
+                        //arrPtr[0] : FAT Sector Empty Entry Loc
+                        //arrPtr[1] : FAT Sector Empty End
+                        emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
+                        intToASCIIStringWrite(imgFile, 268435448, emptyFATptr[1], 0, 4);
+                        //Modify directory that we allocated space to. Use findFatSectorInDir() to
+                        //make sure we are modifying the right file.
+                        unsigned int fats[2];
+                        unsigned int * fatsPtr;
+                        fats[0] = index;
+                        fatsPtr = findFatSectorInDir(imgFile, fats, dirs->CUR_Clus);
+                        unsigned int FatSectorDirCluster = fatsPtr[1];
+                        index = fatsPtr[0];
+                        //Modify the Data Region
+                        unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+                        //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
+                        DataSector += (FatSectorDirCluster - 2) * 512;
+                        //Offset for Empty Index Start
+                        DataSector += index * 32;
+                        //Write Cluster number to file
+                        //HI
+                        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 20, 2, 2);
+                        //LOW
+                        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 26, 0, 2);
+                        //Flag that we need to read again.
+                        flag = 1;
+                    }
+                }
+            }
+        }
+    }
+    //Re-read the file again for the cluster. Since we had to write to it for allocating space to empty files given.
+    if(flag == 1)
+    {
+        getDirectoryList(imgFile, N);
+    }
+    else
+    {
+        return dirs;
+    }
 }
 
 void readDirectories(dirlist * readEntry)
@@ -1541,7 +1616,12 @@ int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int 
     int found = -1;
     unsigned char name[11];
     strcpy(name, item);
-    strncat(name, "           ", 11 - strlen(item));
+    int j = strlen(item);
+    for(j; j < 11; j++)
+    {
+        strcat(name, " ");
+    }
+    //strncat(name, "           ", 11 - strlen(item));
     for(i; i < directories->size; i++)
     {
         //Compare only up to only strlen(item) b/c there will be spaces left from
@@ -1696,7 +1776,7 @@ tokenlist * getHex(const char * imgFile, int decStart, int size)
         //printf("%s ", buffer);
         add_token(hex, buffer);
     }
-    printf("\n");
+    // printf("\n");
     //Close working file and deallocate working array.
     close(file);
     free(bitArr);
@@ -1723,7 +1803,7 @@ char * littleEndianHexStringFromTokens(tokenlist * hex)
 
 char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size)
 {
-    printf("littleEndianHexStringFromUnsignedChar()\n");
+    // printf("littleEndianHexStringFromUnsignedChar()\n");
     //Allocate 2 * hex->size since we store 2 hexes at each item
     char * littleEndian = malloc(sizeof(char) * size * 2 + 1);
     //Initialize to get rid of garbage data
@@ -1736,14 +1816,14 @@ char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size)
         snprintf(buffer, 3, "%02x", arr[end]);
         strcat(littleEndian, buffer);
     }
-    printf("%s\n\n", littleEndian);
+    // printf("%s\n\n", littleEndian);
     return littleEndian;
 }
 
 //CURRENTLY UNUSED
 char * bigEndianHexString(tokenlist * hex)
 {
-    printf("bigEndianHexString()\n");
+    // printf("bigEndianHexString()\n");
     //Allocate 2 * hex->size since we store 2 hexes at each item
     char * bigEndian = malloc(sizeof(char) * hex->size * 2 + 1);
     //Initialize to get rid of garbage data
@@ -1754,7 +1834,7 @@ char * bigEndianHexString(tokenlist * hex)
     {
         strcat(bigEndian, hex->items[begin]);
     }
-    printf("%s\n\n", bigEndian);
+    // printf("%s\n\n", bigEndian);
     return bigEndian;
 }
 

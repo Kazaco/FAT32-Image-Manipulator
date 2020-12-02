@@ -257,7 +257,7 @@ void running(const char * imgFile)
         else if(strcmp("creat", tokens->items[0]) == 0 && tokens->size == 2)
         {
             //Find index of DIRNAME
-            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], FILENAME);
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], FILEORDIR);
             //Check if given DIRNAME is in our current directory
             if(index == -1)
             {
@@ -265,13 +265,13 @@ void running(const char * imgFile)
             }
             else
             {
-                printf("File %s already exists.\n", tokens->items[1]);
+                printf("Directory/File %s already exists.\n", tokens->items[1]);
             }
         }
         else if(strcmp("mkdir", tokens->items[0]) == 0 && tokens->size == 2)
         {
             //Find index of DIRNAME
-            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], DIRECTORY);
+            int index = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1], FILEORDIR);
             //Check if given DIRNAME is in our current directory
             if(index == -1)
             {
@@ -279,7 +279,7 @@ void running(const char * imgFile)
             }
             else
             {
-                printf("Directory %s already exists.\n", tokens->items[1]);
+                printf("Directory/File %s already exists.\n", tokens->items[1]);
             }
         }
         else if(strcmp("open", tokens->items[0]) == 0 && tokens->size == 3)

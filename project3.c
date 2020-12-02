@@ -1418,6 +1418,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
     //Reading Hex Values from the FAT and Data Sector
     tokenlist * hex;
     char * littleEndian;
+    int flag = 0;
     //Store List of Directories in whatever folder given by user
     dirlist * dirs = new_dirlist();
     dirs->CUR_Clus = N;
@@ -1528,9 +1529,10 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
                         //Read FAT from top until we find an empty item
                         //arrPtr[0] : FAT Sector Empty Entry Loc
                         //arrPtr[1] : FAT Sector Empty End
-                        // emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
-                        // printf("Empty Entry Loc: %i\n", emptyFATptr[0]);
-                        // printf("Empty Entry End: %i\n", emptyFATptr[1]);
+                        emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
+                        printf("Empty Entry Loc: %i\n", emptyFATptr[0]);
+                        printf("Empty Entry End: %i\n", emptyFATptr[1]);
+                        intToASCIIStringWrite(imgFile, 268435448, emptyFATptr[1], 0, 4);
 
                         unsigned int fats[2];
                         unsigned int * fatsPtr;
@@ -1548,14 +1550,30 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
                         //Offset for Empty Index Start
                         DataSector += index * 32;
                         printf("Main Data Sector Start + Offset: %i\n", DataSector);
+                        //Write Cluster number to file
 
+                        //1. Write cluster of file to disk
+                        //HI
+                        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 20, 2, 2);
+                        //LOW
+                        intToASCIIStringWrite(imgFile, emptyFATptr[0], DataSector + 26, 0, 2);
+
+                        //Flag that we need to read again.
+                        flag = 1;
                     }
                 }
             }
         }
     }
-    
-    return dirs;
+
+    if(flag == 1)
+    {
+        getDirectoryList(imgFile, N);
+    }
+    else
+    {
+        return dirs;
+    }
 }
 
 void readDirectories(dirlist * readEntry)

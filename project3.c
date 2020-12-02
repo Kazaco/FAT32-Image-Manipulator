@@ -2264,7 +2264,7 @@ int filesListIndex(filesList * openFiles, const char * item)
     for (i; i < openFiles->size; i++)
     {
         //Check if we that item in our list.
-        if(strncmp(openFiles->items[i]->FILE_Name, item, strlen(item)) == 0 )
+        if(strncmp(openFiles->items[i]->FILE_Name, item, strlen(openFiles->items[i]->FILE_Name)) == 0 )
         {
             found = i;
             break;

@@ -917,7 +917,7 @@ void running(const char * imgFile)
                                 intToASCIIStringWrite(imgFile, emptyFATptr[0], endClusterFATArr[1], 0, 4);
                             }
 
-                            //Do the index calculation again, if we failed previously.
+                            //Do the index calculation again, if we failed previously
                             if(index == -1)
                             {
                                 //Update directories list b/c we just extended it.
@@ -942,9 +942,10 @@ void running(const char * imgFile)
                         unsigned int DataSectorEndianVal = 0;
                         tokenlist * hex;
                         char * littleEndian;
-                        int first = 1;
-                        unsigned int  firstLoc = emptyFATptr[1];
-                        intToASCIIStringWrite(imgFile, 1, emptyFATptr[1], 0, 4);
+                        unsigned int * emptyFATptr1 = findEmptyEntryInFAT(imgFile, emptyFATArr1);
+                        printf("Previous clus 2: %d\n",emptyFATptr[0]);
+                        intToASCIIStringWrite(imgFile, emptyFATptr1[0], emptyFATptr[1], 0, 4);
+                        emptyFATptr = emptyFATptr1;
                         do
                     {
                         //Read the FAT until we are at the end of the chosen cluster (N). This will tell us
@@ -979,22 +980,16 @@ void running(const char * imgFile)
                         close(file);
 
 
-                        printf("Fat Sector Start: %i\n", FatSector);
+                        //printf("Fat Sector Start: %i\n", FatSector);
                         //Set up data for new loop, or  quit.
                         //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
                         if((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0)
                         {
-                            if(first == 1){
-                                unsigned int * emptyFATptr1 = findEmptyEntryInFAT(imgFile, emptyFATArr1);
-                                printf("Previous clus 2: %d\n",emptyFATptr[0]);
-                                intToASCIIStringWrite(imgFile, emptyFATptr1[0], firstLoc, 0, 4);
-                                emptyFATptr = emptyFATptr1;
-                            }else{
-                                unsigned int * emptyFATptr1 = findEmptyEntryInFAT(imgFile, emptyFATArr1);
-                                printf("Previous clus 2: %d\n",emptyFATptr[0]);
-                                intToASCIIStringWrite(imgFile, emptyFATptr1[0], emptyFATptr[1], 0, 4);
-                                emptyFATptr = emptyFATptr1;
-                            }
+
+                            emptyFATptr1 = findEmptyEntryInFAT(imgFile, emptyFATArr1);
+                            printf("Previous clus 2: %d\n",emptyFATptr[0]);
+                            intToASCIIStringWrite(imgFile, emptyFATptr1[0], emptyFATptr[1], 0, 4);
+                            emptyFATptr = emptyFATptr1;
                             printf("Next clus 2: %d\n",emptyFATptr[0]);
                             printf("Next Fat 2: %d\n",emptyFATptr[1]);
                             //We have to loop again, reset FAT/Data regions.
@@ -1012,7 +1007,6 @@ void running(const char * imgFile)
                             //printf("New FAT sector: %i\n", FatSector);
                             printf("New Data sector: %i\n", DataSector);
                             printf("New Data1 sector: %i\n", DataSector1);
-                            first--;
                         }
                         else
                         {
@@ -1021,70 +1015,7 @@ void running(const char * imgFile)
                             //printf("Last Time!\n");
                         }
                     } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
-//                    unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
-//                    unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
-//                    unsigned int FatSector1 = BPB.RsvdSecCnt * BPB.BytsPerSec;
-//                    unsigned int DataSector2 = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
-//                    char * clusterHI = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc]->DIR_FstClusHI, 2);
-//                    char * clusterLOW = littleEndianHexStringFromUnsignedChar(currentDirectory->items[loc]->DIR_FstClusLO, 2);
-//                    strcat(clusterHI,clusterLOW);
-//                    free(clusterLOW);
-//                    unsigned int N = (unsigned int)strtol(clusterHI, NULL, 16);
-//                    free(clusterHI);
-//                    //Offset Location for N in FAT (Root = 2, 16392)
-//                    FatSector += N * 4;
-//                    //Offset Location for N in Data (Root = 2, 1049600 : 3 = 1050112 ...)
-//                    DataSector += (N - 2) * 512;
-//                    //Ending Vals (Use in next N calculation)
-//                    unsigned int FatSectorEndianVal = 0;
-//                    unsigned int DataSectorEndianVal = 0;
-//                    //Reading Hex Values from the FAT and Data Sector
-//                    tokenlist * hex;
-//                    char * littleEndian;
-//                    //printf("Current Cluster: %i\n", directory->CUR_Clus);
-//                    do
-//                    {
-//                        //Read the FAT until we are at the end of the chosen cluster (N). This will tell us
-//                        //the data sectors we should go to in the data region of sector size 512.
-//
-//                        //We have already positioned ourselves in the *first* position with previous math.
-//                        //printf("FAT Sector Start: %i\n", FatSector);
-//
-//                        //Read Hex at FatSector Position
-//                        hex = getHex(imgFile, FatSector, 4);
-//                        //Obtain Endian string, so we can determine if this is the last time we should read
-//                        //from the FAT and search the data region.
-//                        littleEndian = littleEndianHexStringFromTokens(hex);
-//                        FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-//                        printf("FAT Endian Val: %i\n", FatSectorEndianVal);
-//                        //Deallocate hex and little Endian for FAT portion
-//                        free_tokens(hex);
-//                        free(littleEndian);
-//
-//                        printf("Fat Sector Start: %i\n", FatSector);
-//                        //Set up data for new loop, or  quit.
-//                        //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
-//                        if((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0)
-//                        {
-//
-//                            memcpy()
-//                            //We have to loop again, reset FAT/Data regions.
-//                            FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
-//                            DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
-//                            //New FAT Offset added
-//                            FatSector += FatSectorEndianVal * 4;
-//                            //New Data Sector Offset Added
-//                            DataSector += (FatSectorEndianVal - 2) * 512;
-//                            //New Offset for FAT
-//                            printf("New FAT sector: %i\n", FatSector);
-//                            //printf("New Data sector: %i\n", DataSector);
-//                        }
-//                        else
-//                        {
-//                            //This should be our last iteration. Do nothing.
-//                            //printf("Last Time!\n");
-//                        }
-//                    } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
+
                 }
                 //case TO already exits in CWD as a file
                 else if((loc = dirlistIndexOfFileOrDirectory(currentDirectory,tokens->items[2],1)) != -1){

@@ -27,7 +27,7 @@ clean:
 
 
 Bugs:
-1. If you copy/mv LONGFILE multiple times there is a possibility the program will break.
+1. If you copy LONGFILE it will take a while to finish properly
 
 Extra Credit:
 rmdir is operational

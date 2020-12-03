@@ -1247,55 +1247,55 @@ void running(const char * imgFile)
                 }
             }
         }
-				else if (strcmp("read", tokens->items[0]) == 0)
-				{
-					if (tokens->size < 3)
-					{
-						printf("ERROR: requires <filename><size> parameters \n");
-					}
-					else
-					{
-						char * result = readFAT(tokens, currentDirectory, imgFile, openFiles);
-						if (result != NULL)
-						{
-							printf("%s\n", result);
-						}
-						free(result);
-					}
-				}
-				else if (strcmp("lseek", tokens->items[0]) == 0)
-				{
-					if (tokens->size < 3)
-					{
-						printf("ERROR: requires <filename><offset> parameters \n");
-					}
-					//assuming a file needs to be opened to allow a lseek operation
-					else
-					{
-						//check if file is open in either read/write mode
-						if (openFileIndex(openFiles, tokens, 1) == -1 && openFileIndex(openFiles, tokens, 2) == -1)
-						{
-							//file isnt open at all!
-							printf("ERROR: File must be opened in either read/write mode before seeking \n");
-						}
-						else
-						{
-							//check for read first
-							//if this fails, then file is write open
-							int index = openFileIndex(openFiles, tokens, 1);
-							if (index == -1)
-							{
-								index = openFileIndex(openFiles, tokens, 2);
-							}
-							unsigned int offset = seekFAT(tokens, currentDirectory, imgFile, openFiles, index);
-							if (offset != -1)
-							{
-								openFiles->items[index]->FILE_OFFSET = offset;
-								printf("New offset for file %s: %u\n", tokens->items[1], openFiles->items[index]->FILE_OFFSET);
-							}
-						}
-					}
-				}
+        else if (strcmp("read", tokens->items[0]) == 0)
+        {
+            if (tokens->size < 3)
+            {
+                printf("ERROR: requires <filename><size> parameters \n");
+            }
+            else
+            {
+                char * result = readFAT(tokens, currentDirectory, imgFile, openFiles);
+                if (result != NULL)
+                {
+                    printf("%s\n", result);
+                }
+                free(result);
+            }
+        }
+        else if (strcmp("lseek", tokens->items[0]) == 0)
+        {
+            if (tokens->size < 3)
+            {
+                printf("ERROR: requires <filename><offset> parameters \n");
+            }
+            //assuming a file needs to be opened to allow a lseek operation
+            else
+            {
+                //check if file is open in either read/write mode
+                if (openFileIndex(openFiles, tokens, 1) == -1 && openFileIndex(openFiles, tokens, 2) == -1)
+                {
+                    //file isnt open at all!
+                    printf("ERROR: File must be opened in either read/write mode before seeking \n");
+                }
+                else
+                {
+                    //check for read first
+                    //if this fails, then file is write open
+                    int index = openFileIndex(openFiles, tokens, 1);
+                    if (index == -1)
+                    {
+                        index = openFileIndex(openFiles, tokens, 2);
+                    }
+                    unsigned int offset = seekFAT(tokens, currentDirectory, imgFile, openFiles, index);
+                    if (offset != -1)
+                    {
+                        openFiles->items[index]->FILE_OFFSET = offset;
+                        printf("New offset for file %s: %u\n", tokens->items[1], openFiles->items[index]->FILE_OFFSET);
+                    }
+                }
+            }
+        }
         else if(strcmp("rmdir", tokens->items[0]) == 0 && tokens->size >= 2)
         {
             int loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1],3);
@@ -1492,86 +1492,86 @@ char * readFAT(tokenlist*tokens, dirlist*directories, const char*imgfile, filesL
 	char * returnString = (char*)malloc(sizeof(char) * readSize + 1);
 	//Check our allocation for the file
 	int fileFATAllocation = 0;
-  int fileDataAllocation = 0;
+    int fileDataAllocation = 0;
 
 	int readStartVal = openFiles->items[openIndex]->FILE_OFFSET;
-  int readEndVal = openFiles->items[openIndex]->FILE_OFFSET + atoi(tokens->items[2]);
-  //printf("readStartVal: %i\n", readStartVal);
-  //printf("readEndVal: %i\n", readEndVal);
+    int readEndVal = openFiles->items[openIndex]->FILE_OFFSET + atoi(tokens->items[2]);
+    //printf("readStartVal: %i\n", readStartVal);
+    //printf("readEndVal: %i\n", readEndVal);
 	if (readStartVal + atoi(tokens->items[2]) > openFiles->items[openIndex]->FILE_SIZE)
-  {
- 	 readEndVal = openFiles->items[openIndex]->FILE_SIZE;
-  }
+    {
+        readEndVal = openFiles->items[openIndex]->FILE_SIZE;
+    }
 	//Check how many FAT/data regions blocks are allocated for the given file. First check modulo
- //to know how we should calculate edge cases.
- if(openFiles->items[openIndex]->FILE_SIZE % BPB.BytsPerSec == 0 && openFiles->items[openIndex]->FILE_SIZE != 0)
- {
-		 //Completely filled data region in last block.
-		 fileFATAllocation = openFiles->items[openIndex]->FILE_SIZE / BPB.BytsPerSec;
-		 fileDataAllocation = fileFATAllocation * 512;
- }
- else
- {
-		 //Partially filled data region in last block.
-		 fileFATAllocation = (openFiles->items[openIndex]->FILE_SIZE / BPB.BytsPerSec) + 1;
-		 fileDataAllocation = fileFATAllocation * 512;
- }
- //printf("Current File FAT Allocation: %i\n", fileFATAllocation);
- //printf("Current File Data Region Allocation: %i\n", fileDataAllocation);
+    //to know how we should calculate edge cases.
+    if(openFiles->items[openIndex]->FILE_SIZE % BPB.BytsPerSec == 0 && openFiles->items[openIndex]->FILE_SIZE != 0)
+    {
+        //Completely filled data region in last block.
+        fileFATAllocation = openFiles->items[openIndex]->FILE_SIZE / BPB.BytsPerSec;
+        fileDataAllocation = fileFATAllocation * 512;
+    }
+    else
+    {
+        //Partially filled data region in last block.
+        fileFATAllocation = (openFiles->items[openIndex]->FILE_SIZE / BPB.BytsPerSec) + 1;
+        fileDataAllocation = fileFATAllocation * 512;
+    }
+    //printf("Current File FAT Allocation: %i\n", fileFATAllocation);
+    //printf("Current File Data Region Allocation: %i\n", fileDataAllocation);
 
- unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
- unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
- unsigned int bitsLeftToWrite = atoi(tokens->items[2]);
- FatSector += openFiles->items[openIndex]->FILE_FstClus * 4;
- DataSector += (openFiles->items[openIndex]->FILE_FstClus - 2) * 512;
- unsigned int FatSectorEndianVal = 0;
- unsigned int bitsLeftToRead = atoi(tokens->items[2]);
- unsigned int ReadPos = 0;
- tokenlist * hex;
- char * littleEndian;
- do {
-	 hex = getHex(imgfile, FatSector, 4);
-   //Obtain Endian string, so we can determine if this is the last time we should read
-   //from the FAT and search the data region.
-   littleEndian = littleEndianHexStringFromTokens(hex);
-   FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
-   //printf("FAT Endian Val: %i\n", FatSectorEndianVal);
-   //Deallocate hex and little Endian for FAT portion
-   free_tokens(hex);
-   free(littleEndian);
-	 if (readStartVal >= 0 && readStartVal < 512)
-	 {
-		 //while within data section, read
-		 //printf("Reading...\n");
-		 while (readStartVal < 512 && bitsLeftToRead != 0)
-		 {
-			 char readboi;
-			 int file = open(imgfile, O_RDONLY);
-			 lseek(file, DataSector + readStartVal, SEEK_SET);
-			 read(file, &readboi, sizeof(char));
-			 strncat(returnString, &readboi, 1);
-			 ReadPos++;
-			 readStartVal++;
-			 bitsLeftToRead--;
-			 close(file);
-		 }
-	 }
-	 //will need to change up the FAT table
-	 readStartVal = 0;
-	 if (bitsLeftToRead != 0)
-	 {
-		FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
-		DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
-		//New FAT Offset added
-		FatSector += FatSectorEndianVal * 4;
-		//New Data Sector Offset Added
-		DataSector += (FatSectorEndianVal - 2) * 512;
-		//New Offset for FAT
-		//printf("New FAT sector: %i\n", FatSector);
-		//printf("New Data sector: %i\n", DataSector);
-	 }
-} while(bitsLeftToRead != 0);
-
+    unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+    unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+    unsigned int bitsLeftToWrite = atoi(tokens->items[2]);
+    FatSector += openFiles->items[openIndex]->FILE_FstClus * 4;
+    DataSector += (openFiles->items[openIndex]->FILE_FstClus - 2) * 512;
+    unsigned int FatSectorEndianVal = 0;
+    unsigned int bitsLeftToRead = atoi(tokens->items[2]);
+    unsigned int ReadPos = 0;
+    tokenlist * hex;
+    char * littleEndian;
+    do 
+    {
+        hex = getHex(imgfile, FatSector, 4);
+        //Obtain Endian string, so we can determine if this is the last time we should read
+        //from the FAT and search the data region.
+        littleEndian = littleEndianHexStringFromTokens(hex);
+        FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
+        //printf("FAT Endian Val: %i\n", FatSectorEndianVal);
+        //Deallocate hex and little Endian for FAT portion
+        free_tokens(hex);
+        free(littleEndian);
+        if (readStartVal >= 0 && readStartVal < 512)
+        {
+            //while within data section, read
+            //printf("Reading...\n");
+            while (readStartVal < 512 && bitsLeftToRead != 0)
+            {
+                char readboi;
+                int file = open(imgfile, O_RDONLY);
+                lseek(file, DataSector + readStartVal, SEEK_SET);
+                read(file, &readboi, sizeof(char));
+                strncat(returnString, &readboi, 1);
+                ReadPos++;
+                readStartVal++;
+                bitsLeftToRead--;
+                close(file);
+            }
+        }
+        //will need to change up the FAT table
+        readStartVal = 0;
+        if (bitsLeftToRead != 0)
+        {
+            FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+            DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+            //New FAT Offset added
+            FatSector += FatSectorEndianVal * 4;
+            //New Data Sector Offset Added
+            DataSector += (FatSectorEndianVal - 2) * 512;
+            //New Offset for FAT
+            //printf("New FAT sector: %i\n", FatSector);
+            //printf("New Data sector: %i\n", DataSector);
+        }
+    } while(bitsLeftToRead != 0);
 	return returnString;
 }
 

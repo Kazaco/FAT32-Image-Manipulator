@@ -806,6 +806,11 @@ void running(const char * imgFile)
                 //Deallocate String used.
                 free(string);
 
+                //Update lseek info (should now be offset + size)
+                // printf("Old: %i\n", openFiles->items[openIndex]->FILE_OFFSET);
+                openFiles->items[openIndex]->FILE_OFFSET = openFiles->items[openIndex]->FILE_OFFSET + atoi(tokens->items[2]);
+                // printf("New: %i\n", openFiles->items[openIndex]->FILE_OFFSET);
+
                 //Modify the size values stored for file if we wrote beyond its current file size. Must change
                 //program local data and the disk itself.
                 if(writeEndVal > openFiles->items[openIndex]->FILE_SIZE)
@@ -1252,6 +1257,10 @@ void running(const char * imgFile)
             {
                 printf("ERROR: requires <filename><size> parameters \n");
             }
+            else if(tokens->size > 3)
+            {
+                printf("ERROR: requires <filename><offset> parameters \n");
+            }
             else
             {
                 char * result = readFAT(tokens, currentDirectory, imgFile, openFiles);
@@ -1268,11 +1277,15 @@ void running(const char * imgFile)
             {
                 printf("ERROR: requires <filename><offset> parameters \n");
             }
+            else if(tokens->size > 3)
+            {
+                printf("ERROR: requires <filename><offset> parameters \n");
+            }
             //assuming a file needs to be opened to allow a lseek operation
             else
             {
                 //check if file is open in either read/write mode
-                if (openFileIndex(openFiles, tokens, 1) == -1 && openFileIndex(openFiles, tokens, 2) == -1)
+                if (openFileIndex(openFiles, tokens, 3) == -1)
                 {
                     //file isnt open at all!
                     printf("ERROR: File must be opened in either read/write mode before seeking \n");
@@ -1572,6 +1585,12 @@ char * readFAT(tokenlist*tokens, dirlist*directories, const char*imgfile, filesL
             //printf("New Data sector: %i\n", DataSector);
         }
     } while(bitsLeftToRead != 0);
+
+    //Update lseek info (should now be offset + size)
+    //printf("Old: %i\n", openFiles->items[openIndex]->FILE_OFFSET);
+    openFiles->items[openIndex]->FILE_OFFSET = readEndVal;
+    //printf("New: %i\n", openFiles->items[openIndex]->FILE_OFFSET);
+
 	return returnString;
 }
 
@@ -1581,6 +1600,7 @@ int openFileIndex(filesList * files, tokenlist * tokens, int flag)
     //Flag:
     // 1 - READ
     // 2 - WRITE
+    // 3 - READ OR WRITE
 
     //Check if given char * is in our given directory
     int i = 0;
@@ -1597,14 +1617,14 @@ int openFileIndex(filesList * files, tokenlist * tokens, int flag)
             // printf("File Mode: %s s\n", files->items[i]->FILE_Mode);
 
             //Check if we are allowed to read the file
-            if(flag == 1 && (strcmp(files->items[i]->FILE_Mode, "r") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
+            if( (flag == 1 || flag == 3) && (strcmp(files->items[i]->FILE_Mode, "r") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
             || strcmp(files->items[i]->FILE_Mode, "wr") == 0) )
             {
                 index = i;
                 return index;
             }
             //Check if we are allowed to write to the file
-            else if(flag == 2 && (strcmp(files->items[i]->FILE_Mode, "w") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
+            else if( (flag == 2 || flag == 3) && (strcmp(files->items[i]->FILE_Mode, "w") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
             || strcmp(files->items[i]->FILE_Mode, "wr") == 0) )
             {
                 index = i;

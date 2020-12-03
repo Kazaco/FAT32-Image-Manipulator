@@ -1489,7 +1489,8 @@ char * readFAT(tokenlist*tokens, dirlist*directories, const char*imgfile, filesL
 	int openIndex = openFileIndex(openFiles, tokens, 1);
 	if (openIndex == -1) {printf("ERROR: File does not exist or needs to be in read mode\n"); return NULL;}
 	unsigned int readSize = atoi(tokens->items[2]);
-	char * returnString = (char*)malloc(sizeof(char) * readSize + 1);
+	char * returnString = malloc(sizeof(char) * readSize + 1);
+    strcpy(returnString, "");
 	//Check our allocation for the file
 	int fileFATAllocation = 0;
     int fileDataAllocation = 0;

@@ -1558,8 +1558,7 @@ char * readFAT(tokenlist*tokens, dirlist*directories, const char*imgfile, filesL
                 close(file);
             }
         }
-        //will need to change up the FAT table
-        readStartVal = 0;
+
         if (bitsLeftToRead != 0)
         {
             FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
@@ -1569,6 +1568,7 @@ char * readFAT(tokenlist*tokens, dirlist*directories, const char*imgfile, filesL
             //New Data Sector Offset Added
             DataSector += (FatSectorEndianVal - 2) * 512;
             //New Offset for FAT
+            readStartVal -= 512;
             //printf("New FAT sector: %i\n", FatSector);
             //printf("New Data sector: %i\n", DataSector);
         }

@@ -971,11 +971,10 @@ void running(const char * imgFile)
                         //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
                         if((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0)
                         {
-
+                            emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
                             emptyFATptr1 = findEmptyEntryInFATNext(imgFile, emptyFATArr1);
-                            // printf("Previous clus 2: %d\n",emptyFATptr[0]);
                             intToASCIIStringWrite(imgFile, emptyFATptr1[0], emptyFATptr[1], 0, 4);
-                            emptyFATptr = emptyFATptr1;
+                            emptyFATptr1 = emptyFATptr;
                             //printf("Next clus 2: %d\n",emptyFATptr[0]);
                             // printf("Next Fat 2: %d\n",emptyFATptr[1]);
                             //We have to loop again, reset FAT/Data regions.

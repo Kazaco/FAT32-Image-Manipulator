@@ -1000,6 +1000,7 @@ void running(const char * imgFile)
                             //printf("Last Time!\n");
                         }
                     } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
+                    free(emptyFATptr1);
                     unsigned int fats[2];
                     unsigned int * fatsPtr;
                     fats[0] = index;
@@ -1129,9 +1130,9 @@ void running(const char * imgFile)
                         tokenlist * hex;
                         char * littleEndian;
                         unsigned int lo = emptyFATptr[0];
-                        unsigned int * emptyFATptr1 = findEmptyEntryInFAT(imgFile, emptyFATArr1);
-                        intToASCIIStringWrite(imgFile, emptyFATptr1[0], emptyFATptr[1], 0, 4);
-                        emptyFATptr = emptyFATptr1;
+                        unsigned int * emptyFATptr1;// = findEmptyEntryInFAT(imgFile, emptyFATArr1);
+//                        intToASCIIStringWrite(imgFile, emptyFATptr1[0], emptyFATptr[1], 0, 4);
+//                        emptyFATptr = emptyFATptr1;
                         do
                         {
                             //Read the FAT until we are at the end of the chosen cluster (N). This will tell us
@@ -1172,10 +1173,10 @@ void running(const char * imgFile)
                             if((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0)
                             {
 
-                                emptyFATptr1 = findEmptyEntryInFAT(imgFile, emptyFATArr1);
-                                //printf("Previous clus 2: %d\n",emptyFATptr[0]);
+                                emptyFATptr1 = findEmptyEntryInFATNext(imgFile, emptyFATArr1);
                                 intToASCIIStringWrite(imgFile, emptyFATptr1[0], emptyFATptr[1], 0, 4);
-                                emptyFATptr = emptyFATptr1;
+                                emptyFATptr = findEmptyEntryInFAT(imgFile, emptyFATArr);
+                                emptyFATptr1 = emptyFATptr;
                                 // printf("Next clus 2: %d\n",emptyFATptr[0]);
                                 //printf("Next Fat 2: %d\n",emptyFATptr[1]);
                                 //We have to loop again, reset FAT/Data regions.
@@ -1201,6 +1202,7 @@ void running(const char * imgFile)
                                 //printf("Last Time!\n");
                             }
                         } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
+                        free(emptyFATptr1);
                         unsigned int fats[2];
                         unsigned int * fatsPtr;
                         fats[0] = index;

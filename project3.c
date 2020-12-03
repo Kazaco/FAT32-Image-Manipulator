@@ -96,6 +96,9 @@ unsigned int * findFatSectorInDir(const char* imgFile, unsigned int * fats, unsi
 
 void removeFile(const char * imgFile, dirlist * directory, const char * filename);
 int openFileIndex(filesList * files, tokenlist * tokens, int flag);
+char * readFAT(tokenlist*, dirlist*, const char*, filesList*);
+unsigned int seekFAT(tokenlist*, dirlist*, const char *, filesList*, unsigned int);
+
 
 int main(int argc, char *argv[])
 {
@@ -126,9 +129,9 @@ void running(const char * imgFile)
     //Get BIOS INFO before moving around disk.
     getBIOSParamBlock(imgFile);
     //Make the User Start in the Root
-    dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
-    //Let the user have a container to interact w/ files no matter where they are in file system.
-    filesList * openFiles = new_filesList();
+		dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+		//Let the user have a container to interact w/ files no matter where they are in file system.
+		filesList * openFiles = new_filesList();
     printf("=== FAT32 File System ===\n");
     while(1)
     {
@@ -247,7 +250,7 @@ void running(const char * imgFile)
 
                 //Deallocate
                 free(clusterHI);
-                free(clusterLOW);   
+                free(clusterLOW);
             }
             else
             {
@@ -313,7 +316,7 @@ void running(const char * imgFile)
                 else
                 {
                     //Can read or write to file.
-                    if(strcmp("r", tokens->items[2]) == 0 || strcmp("w", tokens->items[2]) == 0 
+                    if(strcmp("r", tokens->items[2]) == 0 || strcmp("w", tokens->items[2]) == 0
                     || strcmp("rw", tokens->items[2]) == 0 || strcmp("wr", tokens->items[2]) == 0)
                     {
                         if(createOpenFileEntry(openFiles, currentDirectory, tokens, index) == 1)
@@ -345,9 +348,9 @@ void running(const char * imgFile)
             {
                 //Create a new filesList b/c deleting items from dynamically allocated in c can't be simple.
                 filesList * newList = new_filesList();
-                //Create a new entry list 
+                //Create a new entry list
                 newList->items = (FILEENTRY **) realloc(newList->items, (openFiles->size - 1) * sizeof(FILEENTRY));
-                
+
                 //Copy all items over that don't have FILENAME.
                 int i = 0;
                 for(i; i < openFiles->size; i++)
@@ -466,7 +469,7 @@ void running(const char * imgFile)
                             }
                             else
                             {
-                                printf("The name is already being used by another file\n", tokens->items[1]);
+                                printf("The name is already being used by another file %s\n", tokens->items[1]);
                             }
                         }
                     }
@@ -494,7 +497,7 @@ void running(const char * imgFile)
                             lseek(file, DataSector, SEEK_SET);
                             write(file,currentDirectory->items[loc],32);
 
-                            //Do math to calculate the FAT sector we should iterate to get 
+                            //Do math to calculate the FAT sector we should iterate to get
                             //the right data region we should modify
                             fats[0] = loc;
                             fatsPtr = findFatSectorInDir(imgFile,fats,currentDirectory->CUR_Clus);
@@ -531,7 +534,7 @@ void running(const char * imgFile)
                         }
                         else
                         {
-                            printf("The name is already being used by another file\n", tokens->items[1]);
+                            printf("The name is already being used by another file  %s\n", tokens->items[1]);
                         }
                     }
                     free_dirlist(to);
@@ -662,7 +665,7 @@ void running(const char * imgFile)
 
                 //Check if lseek + size given by the user is greater then allocated space for chosen file. If it is
                 // we need to extend the file before we write.
-                int writeStartVal = openFiles->items[openIndex]->FILE_OFFSET; 
+                int writeStartVal = openFiles->items[openIndex]->FILE_OFFSET;
                 int writeEndVal = openFiles->items[openIndex]->FILE_OFFSET + atoi(tokens->items[2]);
                 unsigned int emptyFATArr[2];
                 unsigned int * emptyFATptr;
@@ -695,7 +698,7 @@ void running(const char * imgFile)
                     fileDataAllocation += 512;
                     // printf("New Data Region Allocation: %i\n", fileDataAllocation);
                 }
-            
+
                 //Writing to file
                 //Beginning Locations for FAT and Data Sector
                 unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
@@ -797,7 +800,7 @@ void running(const char * imgFile)
                             writeStartVal -= 512;
                         }
                     }
-                    
+
                 } while (bitsLeftToWrite != 0);
 
                 //Deallocate String used.
@@ -807,7 +810,7 @@ void running(const char * imgFile)
                 //program local data and the disk itself.
                 if(writeEndVal > openFiles->items[openIndex]->FILE_SIZE)
                 {
-                    // 1. Local Data (filelist) 
+                    // 1. Local Data (filelist)
                     openFiles->items[openIndex]->FILE_SIZE = writeEndVal;
 
                     // 2. Disk Data (Assuming open will delete itself when we change directories)
@@ -851,7 +854,7 @@ void running(const char * imgFile)
                 printf("Specified filename does not exist.\n");
             }
             else if(strcmp(tokens->items[1],tokens->items[2]) == 0){
-                printf("The name is already being used by another file\n", tokens->items[2]);
+                printf("The name is already being used by another file %s\n", tokens->items[2]);
             }
                 //Filename exists
             else{
@@ -1239,11 +1242,60 @@ void running(const char * imgFile)
                         to = getDirectoryList(imgFile,to->CUR_Clus);
                     }
                     else{
-                        printf("The name is already being used by another file\n", tokens->items[1]);
+                        printf("The name is already being used by another file %s\n", tokens->items[1]);
                     }
                 }
             }
         }
+				else if (strcmp("read", tokens->items[0]) == 0)
+				{
+					if (tokens->size < 3)
+					{
+						printf("ERROR: requires <filename><size> parameters \n");
+					}
+					else
+					{
+						char * result = readFAT(tokens, currentDirectory, imgFile, openFiles);
+						if (result != NULL)
+						{
+							printf("%s\n", result);
+						}
+						free(result);
+					}
+				}
+				else if (strcmp("lseek", tokens->items[0]) == 0)
+				{
+					if (tokens->size < 3)
+					{
+						printf("ERROR: requires <filename><offset> parameters \n");
+					}
+					//assuming a file needs to be opened to allow a lseek operation
+					else
+					{
+						//check if file is open in either read/write mode
+						if (openFileIndex(openFiles, tokens, 1) == -1 && openFileIndex(openFiles, tokens, 2) == -1)
+						{
+							//file isnt open at all!
+							printf("ERROR: File must be opened in either read/write mode before seeking \n");
+						}
+						else
+						{
+							//check for read first
+							//if this fails, then file is write open
+							int index = openFileIndex(openFiles, tokens, 1);
+							if (index == -1)
+							{
+								index = openFileIndex(openFiles, tokens, 2);
+							}
+							unsigned int offset = seekFAT(tokens, currentDirectory, imgFile, openFiles, index);
+							if (offset != -1)
+							{
+								openFiles->items[index]->FILE_OFFSET = offset;
+								printf("New offset for file %s: %u\n", tokens->items[1], openFiles->items[index]->FILE_OFFSET);
+							}
+						}
+					}
+				}
         else if(strcmp("rmdir", tokens->items[0]) == 0 && tokens->size >= 2)
         {
             int loc = dirlistIndexOfFileOrDirectory(currentDirectory, tokens->items[1],3);
@@ -1387,6 +1439,142 @@ void running(const char * imgFile)
         free_tokens(tokens);
     }
 }
+unsigned int seekFAT(tokenlist * tokens, dirlist * directories, const char * imgFile, filesList * curFiles, unsigned int index2){
+	//first check if file exists
+	int index = dirlistIndexOfFileOrDirectory(directories, tokens->items[1], 1);
+	if(createOpenFileEntry(curFiles, directories, tokens, index) == 0){printf("issue\n"); return -1;}
+	if (index == -1)
+	{
+		printf("ERROR: File does not exist!\n");
+		return -1;
+	}
+	//check next if it is a directory
+ 	else if (dirlistIndexOfFileOrDirectory(directories, tokens->items[1], 2) > 0)
+	{
+		printf("ERROR: File is a directory!\n");
+		return -1;
+	}
+	//else
+	else
+	{
+		unsigned int fileSize = curFiles->items[index2]->FILE_SIZE;
+		//printf("File size: %u\n", fileSize);
+		unsigned int OFFSET = (unsigned int)strtol(tokens->items[2], NULL, 10);
+	//	printf("Requested file offset: %u\n", OFFSET);
+		unsigned int currentPos = curFiles->items[index2]->FILE_OFFSET;
+		//printf("Current position: %u\n", currentPos);
+		//if we are trying to seek more than filesize, do not allow
+		if (OFFSET > fileSize)
+		{
+			printf("ERROR: Offset has attempted to exceed current file size\n");
+			return -1;
+		}
+		else if (currentPos == OFFSET)
+		{
+			printf("Parameter given for offset is the same as current file offset.\n");
+			return -1;
+		}
+		else
+		{
+			return OFFSET;
+		}
+	}
+	//if you are here, soemthing went wrong
+	printf("ERROR: You discovered a bug \n");
+	return -1;
+}
+
+char * readFAT(tokenlist*tokens, dirlist*directories, const char*imgfile, filesList*openFiles)
+{
+	int openIndex = openFileIndex(openFiles, tokens, 1);
+	if (openIndex == -1) {printf("ERROR: File does not exist or needs to be in read mode\n"); return NULL;}
+	unsigned int readSize = atoi(tokens->items[2]);
+	char * returnString = (char*)malloc(sizeof(char) * readSize + 1);
+	//Check our allocation for the file
+	int fileFATAllocation = 0;
+  int fileDataAllocation = 0;
+
+	int readStartVal = openFiles->items[openIndex]->FILE_OFFSET;
+  int readEndVal = openFiles->items[openIndex]->FILE_OFFSET + atoi(tokens->items[2]);
+  //printf("readStartVal: %i\n", readStartVal);
+  //printf("readEndVal: %i\n", readEndVal);
+	if (readStartVal + atoi(tokens->items[2]) > openFiles->items[openIndex]->FILE_SIZE)
+  {
+ 	 readEndVal = openFiles->items[openIndex]->FILE_SIZE;
+  }
+	//Check how many FAT/data regions blocks are allocated for the given file. First check modulo
+ //to know how we should calculate edge cases.
+ if(openFiles->items[openIndex]->FILE_SIZE % BPB.BytsPerSec == 0 && openFiles->items[openIndex]->FILE_SIZE != 0)
+ {
+		 //Completely filled data region in last block.
+		 fileFATAllocation = openFiles->items[openIndex]->FILE_SIZE / BPB.BytsPerSec;
+		 fileDataAllocation = fileFATAllocation * 512;
+ }
+ else
+ {
+		 //Partially filled data region in last block.
+		 fileFATAllocation = (openFiles->items[openIndex]->FILE_SIZE / BPB.BytsPerSec) + 1;
+		 fileDataAllocation = fileFATAllocation * 512;
+ }
+ //printf("Current File FAT Allocation: %i\n", fileFATAllocation);
+ //printf("Current File Data Region Allocation: %i\n", fileDataAllocation);
+
+ unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+ unsigned int DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+ unsigned int bitsLeftToWrite = atoi(tokens->items[2]);
+ FatSector += openFiles->items[openIndex]->FILE_FstClus * 4;
+ DataSector += (openFiles->items[openIndex]->FILE_FstClus - 2) * 512;
+ unsigned int FatSectorEndianVal = 0;
+ unsigned int bitsLeftToRead = atoi(tokens->items[2]);
+ unsigned int ReadPos = 0;
+ tokenlist * hex;
+ char * littleEndian;
+ do {
+	 hex = getHex(imgfile, FatSector, 4);
+   //Obtain Endian string, so we can determine if this is the last time we should read
+   //from the FAT and search the data region.
+   littleEndian = littleEndianHexStringFromTokens(hex);
+   FatSectorEndianVal = (unsigned int)strtol(littleEndian, NULL, 16);
+   //printf("FAT Endian Val: %i\n", FatSectorEndianVal);
+   //Deallocate hex and little Endian for FAT portion
+   free_tokens(hex);
+   free(littleEndian);
+	 if (readStartVal >= 0 && readStartVal < 512)
+	 {
+		 //while within data section, read
+		 //printf("Reading...\n");
+		 while (readStartVal < 512 && bitsLeftToRead != 0)
+		 {
+			 char readboi;
+			 int file = open(imgfile, O_RDONLY);
+			 lseek(file, DataSector + readStartVal, SEEK_SET);
+			 read(file, &readboi, sizeof(char));
+			 strncat(returnString, &readboi, 1);
+			 ReadPos++;
+			 readStartVal++;
+			 bitsLeftToRead--;
+			 close(file);
+		 }
+	 }
+	 //will need to change up the FAT table
+	 readStartVal = 0;
+	 if (bitsLeftToRead != 0)
+	 {
+		FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
+		DataSector = BPB.RsvdSecCnt * BPB.BytsPerSec + (BPB.NumFATs * BPB.FATSz32 * BPB.BytsPerSec);
+		//New FAT Offset added
+		FatSector += FatSectorEndianVal * 4;
+		//New Data Sector Offset Added
+		DataSector += (FatSectorEndianVal - 2) * 512;
+		//New Offset for FAT
+		//printf("New FAT sector: %i\n", FatSector);
+		//printf("New Data sector: %i\n", DataSector);
+	 }
+} while(bitsLeftToRead != 0);
+
+	return returnString;
+}
+
 
 int openFileIndex(filesList * files, tokenlist * tokens, int flag)
 {
@@ -1595,7 +1783,7 @@ void createFile(const char * imgFile, const char * filename, dirlist * directori
 
 void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector, int begin, int size)
 {
-    //Convert wanted integer (little endian) to its hex value. Assuming you aren't passing 
+    //Convert wanted integer (little endian) to its hex value. Assuming you aren't passing
     //values greater than 4 million here.
     unsigned char hexString[9];
     sprintf(hexString, "%08x", value);
@@ -1609,7 +1797,7 @@ void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSec
     // begin = 1 -> BB
     // begin = 2 -> CC
     // begin = 3 -> DD
-    // 
+    //
     // Example:
     // begin = 0, size = 1 -> AA
     // begin = 2, size = 2 -> CC DD
@@ -1740,7 +1928,7 @@ unsigned int * findEndClusEntryInFAT(const char * imgFile, unsigned int clusterS
             //This should be our last iteration. Do nothing.
             //printf("Last Time!\n");
         }
-    
+
     } while ((FatSectorEndClusEndianVal < 268435448 || FatSectorEndClusEndianVal > 4294967295) && FatSectorEndClusEndianVal != 0);
 
     //printf("endClusArr[0] : FAT Sector Clus End Loc: %i\n", FatSectorEndClusLoc);
@@ -2002,7 +2190,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
             DataSector += 32;
             close(file);
         }
-        
+
         //Set up data for new loop, or  quit.
         //RANGE: Cluster End: 0FFFFFF8 -> FFFFFFFF or empty (same for while loop end)
         if((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0)
@@ -2025,7 +2213,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
         }
     } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
 
-    //Allocate Empty files already given by fat32.img 
+    //Allocate Empty files already given by fat32.img
     int i = 0;
     for (i; i < dirs->size; i++)
     {
@@ -2053,7 +2241,7 @@ dirlist * getDirectoryList(const char * imgFile, unsigned int N)
                     unsigned int clusterValHI = (unsigned int)strtol(clusterHI, NULL, 16);
                     free(clusterHI);
                     free(clusterLOW);
-                    
+
                     if(clusterValHI == 0)
                     {
                         unsigned int emptyFATArr[2];
@@ -2164,7 +2352,7 @@ int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int 
     for(i; i < directories->size; i++)
     {
         //Compare only up to only strlen(item) b/c there will be spaces left from
-        //reading it directly from the .img file. 
+        //reading it directly from the .img file.
         if(strncmp(directories->items[i]->DIR_Name, name, strlen(name)) == 0 )
         {
             //Checking that the item is a directory.
@@ -2310,7 +2498,7 @@ tokenlist * getHex(const char * imgFile, int decStart, int size)
     for(i; i < size; i++)
     {
         //Create hex string using input. Size should always be 3
-        //for 2 bits and 1 null character. 
+        //for 2 bits and 1 null character.
         snprintf(buffer, 3, "%02x", bitArr[i]);
         //printf("%s ", buffer);
         add_token(hex, buffer);

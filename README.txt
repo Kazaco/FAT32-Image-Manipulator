@@ -2,7 +2,7 @@ Project 3 README
 
 Names and Division of Labor:
 Alexander Kostandarithes: lseek, read, write, and README
-Karl Cooley:
+Karl Cooley: initial setup, exit, info, size, ls, creat, mkdir, open, close, and write
 Ryan Goldberg:
 
 Files and descriptions:
@@ -26,6 +26,7 @@ clean:
 
 
 
-Bugs: N/A
+Bugs:
+1. If you copy/mv LONGFILE multiple times there is a possibility the program will break.
 
 Extra Credit:

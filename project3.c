@@ -848,6 +848,9 @@ void running(const char * imgFile)
                 }
             }
         }
+        else if(strcmp("cp", tokens->items[0]) == 0 && tokens->size == 4) {
+            printf("Not implemented\n");
+        }
         else if(strcmp("cp", tokens->items[0]) == 0 && tokens->size >= 3) {
 
             int loc = -1;

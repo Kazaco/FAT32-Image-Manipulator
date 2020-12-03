@@ -1000,7 +1000,7 @@ void running(const char * imgFile)
                             //printf("Last Time!\n");
                         }
                     } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
-                    free(emptyFATptr1);
+                    //free(emptyFATptr1);
                     unsigned int fats[2];
                     unsigned int * fatsPtr;
                     fats[0] = index;
@@ -1202,7 +1202,7 @@ void running(const char * imgFile)
                                 //printf("Last Time!\n");
                             }
                         } while ((FatSectorEndianVal < 268435448 || FatSectorEndianVal > 4294967295) && FatSectorEndianVal != 0);
-                        free(emptyFATptr1);
+                        //free(emptyFATptr1);
                         unsigned int fats[2];
                         unsigned int * fatsPtr;
                         fats[0] = index;

@@ -13,16 +13,17 @@
 | project3.c | Has all the required code to completed requested tasks for Project 3 |
 | makefile | will compile project3.c on command |
 | fat32.img | The .img needed by project3.c   |
-| GIT Commit Log | The screenshot to show commits from members   |
+| GitLog.docx | The screenshot to show commits from members   |
+| run.txt | Shows how to open fat32.img on linux os |
   
-How to compile and run:  
+## How to compile and run:  
 ```
 First untar with "tar -xvf project3_Kostandarithes_Cooley_Goldberg.tgz"  
 Type "make" in the terminal window
 Type "./project3 fat32.img" to execute the menu.  
 ```
 
-makefile contents:  
+## makefile contents:  
 ```
 project3: project3.o  
         gcc -o project3 project3.o  
@@ -32,7 +33,7 @@ clean:
         rm *.o project3  
 ```
   
-Bugs/Noted Behaviors:
+## Bugs/Noted Behaviors:
 1. If you copy LONGFILE it will take a while to finish properly
 2. If you open directory GREEN it will take awhile to allocate all the empty files 
 to allow for correct behavior with write/read/rm/cp/ect.
@@ -42,5 +43,8 @@ may be farther away in the Data Region than shown to user.
 4. Write/Read do move the file offset when used (as required by spec). However, this isn't 
 made clear to the user when using the program.
   
-Extra Credit:  
+## Extra Credit:  
 rmdir is operational  
+
+## Screenshot
+![Image of Utility](https://i.imgur.com/I0kRBfX.png)

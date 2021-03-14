@@ -68,7 +68,7 @@ unsigned int * findFatSectorInDir(const char * imgFile, unsigned int * fats, uns
     unsigned int FatSector = BPB.RsvdSecCnt * BPB.BytsPerSec;
     unsigned int FatSectorEndianVal = 0;
     unsigned int FatSectorDirCluster = clus;
-    // //Offset Location for N in FAT (Root = 2, 16392)
+    //Offset Location for N in FAT (Root = 2, 16392)
     FatSector += clus * 4;
     //Need to iterate thorugh FAT again if empty folder is in another FAT entry other than the first.
     while(FATIterateNum != 0)

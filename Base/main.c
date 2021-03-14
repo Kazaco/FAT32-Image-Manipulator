@@ -9,8 +9,12 @@
 #include "Commands/ls.h"
 #include "Commands/cd.h"
 #include "Commands/creat.h"
+#include "Commands/mkdir.h"
+#include "Commands/open.h"
+#include "Commands/close.h"
 #include <stdio.h> 		//printf()
 #include <stdlib.h>     //free(), realloc()
+#include <string.h>     //strchr(), memcpy()
 
 int main(int argc, char *argv[])
 {
@@ -74,6 +78,38 @@ int main(int argc, char *argv[])
             {
                 createNewFile(imgFile, tokens, currentDirectory);
             }
+            else if(strcmp("mkdir", tokens->items[0]) == 0 && tokens->size == 2)
+            {
+                createNewDirectory(imgFile, tokens, currentDirectory);
+            }
+            else if(strcmp("open", tokens->items[0]) == 0)
+            {
+                if(tokens->size == 3)
+                {
+                    openFileForReadOrWrite(tokens, currentDirectory, openFiles);
+                }
+                else
+                {
+                    printf("Invalid Format: open <filename> <r/w/rw/wr>\n");
+                }
+            }
+            else if(strcmp("close", tokens->items[0]) == 0)
+            {
+                if(tokens->size == 2)
+                {
+                    openFiles = closeFileForReadOrWrite(tokens, currentDirectory, openFiles);
+                }
+                else
+                {
+                    printf("Invalid Format: close <filename>\n");
+                }
+            }
+            else
+            {
+                printf("Invalid Command\n");
+            }
+            free(input);
+            free_tokens(tokens);
         }
     }
     else

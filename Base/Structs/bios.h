@@ -1,5 +1,6 @@
 #ifndef _BIOS_H
 #define _BIOS_H
+
 struct BIOS_Param_Block {
     unsigned int BytsPerSec;    //Bytes per sector
     unsigned int SecPerClus;    //Sectors per cluster
@@ -9,4 +10,5 @@ struct BIOS_Param_Block {
     unsigned int FATSz32;       //FAT size
     unsigned int RootClus;      //Root cluster
 } BPB;
+
 #endif

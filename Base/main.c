@@ -1,6 +1,12 @@
+#include "Structs/bios.h"
+#include "Structs/direntry.h"
 #include "Helpers/utils.h"
 #include "Helpers/parser.h"
+#include "Helpers/directorylist.h"
+#include "Helpers/fileslist.h"
 #include "Commands/info.h"
+#include "Commands/size.h"
+#include "Commands/ls.h"
 #include <stdio.h> 		//printf()
 #include <stdlib.h>     //free(), realloc()
 
@@ -19,13 +25,11 @@ int main(int argc, char *argv[])
         //Valid FAT32 File System, set-up Program
         //before user interaction.
         const char * imgFile = argv[1];
-        getBIOSParamBlock(imgFile);
-
-        //MISSING
         //Make the User Start in the Root
-		//dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+        getBIOSParamBlock(imgFile);
+		dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
 		//Let the user have a container to interact w/ files no matter where they are in file system.
-		//filesList * openFiles = new_filesList();
+		filesList * openFiles = new_filesList();
 
         printf("=== FAT32 File System ===\n");
         while(1)
@@ -44,17 +48,21 @@ int main(int argc, char *argv[])
             else if(strcmp("exit", tokens->items[0]) == 0 && tokens->size == 1)
             {
                 free(input);
-                // free_dirlist(currentDirectory);
-                // free_filesList(openFiles);
+                free_dirlist(currentDirectory);
+                free_filesList(openFiles);
                 break;
             }
             else if(strcmp("info", tokens->items[0]) == 0 && tokens->size == 1)
             {
                 printFATInfo();
             }
-            else if(strcmp("ls", tokens->items[0]) == 0 && (tokens->size == 1 || tokens->size == 2))
+            else if(strcmp("size", tokens->items[0]) == 0 && tokens->size == 2)
             {
-                printLSCommand();
+                printFileSize(tokens, currentDirectory);
+            }
+            else if(strcmp("ls", tokens->items[0]) == 0 && (tokens->size == 1 || tokens->size == 2) )
+            {
+                printList(imgFile, tokens, currentDirectory);
             }
         }
     }

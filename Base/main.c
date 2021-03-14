@@ -7,6 +7,8 @@
 #include "Commands/info.h"
 #include "Commands/size.h"
 #include "Commands/ls.h"
+#include "Commands/cd.h"
+#include "Commands/creat.h"
 #include <stdio.h> 		//printf()
 #include <stdlib.h>     //free(), realloc()
 
@@ -67,6 +69,10 @@ int main(int argc, char *argv[])
             else if(strcmp("cd", tokens->items[0]) == 0 && tokens->size == 2)
             {
                 changeDirectory(imgFile, tokens, currentDirectory, openFiles);
+            }
+            else if(strcmp("creat", tokens->items[0]) == 0 && tokens->size == 2)
+            {
+                createNewFile(imgFile, tokens, currentDirectory);
             }
         }
     }

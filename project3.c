@@ -4,21 +4,6 @@
 #include <fcntl.h>      //O_RDONLY
 #include <unistd.h>     //lseek
 
-typedef struct {
-	int size;
-	char **items;
-} tokenlist;
-
-struct BIOS_Param_Block {
-    unsigned int BytsPerSec;    //Bytes per sector
-    unsigned int SecPerClus;    //Sectors per cluster
-    unsigned int RsvdSecCnt;    //Reserved  region size
-    unsigned int NumFATs;       //Number of FATs
-    unsigned int TotSec32;      //Total sectors
-    unsigned int FATSz32;       //FAT size
-    unsigned int RootClus;      //Root cluster
-} BPB;
-
 ///
 struct DIRENTRY{
     unsigned char DIR_Name[11];
@@ -61,12 +46,7 @@ typedef struct {
 	FILEENTRY **items;
 } filesList;
 
-///////////////////////////////////
-char *get_input(void);
-tokenlist *get_tokens(char *input);
-tokenlist *new_tokenlist(void);
-void add_token(tokenlist *tokens, char *item);
-void free_tokens(tokenlist *tokens);
+
 ////////////////////////////////////
 dirlist *new_dirlist(void);
 void free_dirlist(dirlist * directories);
@@ -80,13 +60,9 @@ int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist 
 void readFilesList(filesList * openFiles);
 int filesListIndex(filesList * openFiles, const char * item);
 ////////////////////////////////////
-int file_exists(const char * filename);
-void running(const char * imgFile);
-tokenlist * getHex(const char * imgFile, int decStart, int size);
 char * littleEndianHexStringFromTokens(tokenlist * hex);
 char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size);
 char * bigEndianHexString(tokenlist * hex);
-void getBIOSParamBlock(const char * imgFile);
 ////////////////////////////////////
 void createFile(const char * imgFile, const char * filename, dirlist * directories, unsigned int previousCluster, int flag);
 void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector, int begin, int size);
@@ -2548,41 +2524,6 @@ int filesListIndex(filesList * openFiles, const char * item)
 //////////////////////////////////////////////////////
 // Parsing Hex/Unsigned Char Values    //////////////
 //////////////////////////////////////////////////////
-tokenlist * getHex(const char * imgFile, int decStart, int size)
-{
-   // printf("getHex()\n");
-    //C-String of Bit Values and Token List of Hex Values.
-    unsigned char * bitArr = malloc(sizeof(unsigned char) * size + 1);
-    tokenlist * hex = new_tokenlist();
-
-    //Initialize to get rid of garbage data
-    strcpy(bitArr, "");
-    //Open the file, we already checked that it exists. Obtain the file descriptor
-    int file = open(imgFile, O_RDONLY);
-    //Go to offset position in file. ~SEEK_SET = Absolute position in document.
-    lseek(file, decStart, SEEK_SET);
-    //Read from the file 'size' number of bits from decimal position given.
-    //We'll convert those bit values into hex, and insert into our hex token list.
-    int i = 0;
-    char buffer[3];
-    read(file, bitArr, size);
-    for(i; i < size; i++)
-    {
-        //Create hex string using input. Size should always be 3
-        //for 2 bits and 1 null character.
-        snprintf(buffer, 3, "%02x", bitArr[i]);
-        //printf("%s ", buffer);
-        add_token(hex, buffer);
-    }
-
-    // printf("\n");
-    //Close working file and deallocate working array.
-    close(file);
-    free(bitArr);
-    //Tokenlist of hex values.
-    return hex;
-}
-
 char * littleEndianHexStringFromTokens(tokenlist * hex)
 {
     //printf("littleEndianHexStringFromTokens()\n");
@@ -2635,161 +2576,4 @@ char * bigEndianHexString(tokenlist * hex)
     }
     // printf("%s\n\n", bigEndian);
     return bigEndian;
-}
-
-void getBIOSParamBlock(const char * imgFile)
-{
-    // printf("=== Info ===\n");
-    tokenlist * hex;
-    char * littleEndian;
-
-    //Calculate Bytes Per Sector
-    hex = getHex(imgFile, 11, 2);
-    littleEndian = littleEndianHexStringFromTokens(hex);
-    BPB.BytsPerSec = (unsigned int)strtol(littleEndian, NULL, 16);
-    // printf("Bytes Per Sector: %d\n", BPB.BytsPerSec);
-    free_tokens(hex);
-    free(littleEndian);
-    // printf("=======\n");
-
-    //Calculate Sectors per Cluster
-    hex = getHex(imgFile, 13, 1);
-    littleEndian = littleEndianHexStringFromTokens(hex);
-    BPB.SecPerClus = (unsigned int)strtol(littleEndian, NULL, 16);
-    // printf("Sectors per Cluster: %d\n", BPB.SecPerClus);
-    free_tokens(hex);
-    free(littleEndian);
-    // printf("=======\n");
-
-    //Calculate Reserved Sector Count
-    hex = getHex(imgFile, 14, 2);
-    littleEndian = littleEndianHexStringFromTokens(hex);
-    BPB.RsvdSecCnt = (unsigned int)strtol(littleEndian, NULL, 16);
-    // printf("Reserved Sector Count: %d\n", BPB.RsvdSecCnt);
-    free_tokens(hex);
-    free(littleEndian);
-    // printf("=======\n");
-
-    //Calculate number of FATs
-    hex = getHex(imgFile, 16, 1);
-    littleEndian = littleEndianHexStringFromTokens(hex);
-    BPB.NumFATs = (unsigned int)strtol(littleEndian, NULL, 16);
-    // printf("Number of FATs: %d\n", BPB.NumFATs);
-    free_tokens(hex);
-    free(littleEndian);
-    // printf("=======\n");
-
-    //Calculate total sectors
-    hex = getHex(imgFile, 32, 4);
-    littleEndian = littleEndianHexStringFromTokens(hex);
-    BPB.TotSec32 = (unsigned int)strtol(littleEndian, NULL, 16);
-    // printf("Total Sectors: %d\n", BPB.TotSec32);
-    free_tokens(hex);
-    free(littleEndian);
-    // printf("=======\n");
-
-    //Calculate FAT size
-    hex = getHex(imgFile, 36, 4);
-    littleEndian = littleEndianHexStringFromTokens(hex);
-    BPB.FATSz32 = (unsigned int)strtol(littleEndian, NULL, 16);
-    // printf("FAT size: %d\n", BPB.FATSz32);
-    free_tokens(hex);
-    free(littleEndian);
-    // printf("=======\n");
-
-    //Calculate Root Cluster
-    hex = getHex(imgFile, 44, 4);
-    littleEndian = littleEndianHexStringFromTokens(hex);
-    BPB.RootClus = (unsigned int)strtol(littleEndian, NULL, 16);
-    // printf("Root Cluster: %d\n", BPB.RootClus);
-    free_tokens(hex);
-    free(littleEndian);
-}
-
-//Function that attempts to open specified file and returns 1 if successful
-int file_exists(const char * filename)
-{
-    FILE * file;
-    if(file = fopen(filename,"r"))
-    {
-        fclose(file);
-        return 1;
-    }
-    return 0;
-}
-//////////////////////////////////////////////////////
-// Parsing Input: Taken from Project #1 //////////////
-//////////////////////////////////////////////////////
-tokenlist *new_tokenlist(void)
-{
-	tokenlist *tokens = (tokenlist *) malloc(sizeof(tokenlist));
-	tokens->size = 0;
-	tokens->items = (char **) malloc(sizeof(char *));
-	tokens->items[0] = NULL;
-	return tokens;
-}
-
-void add_token(tokenlist *tokens, char *item)
-{
-	int i = tokens->size;
-
-	tokens->items = (char **) realloc(tokens->items, (i + 2) * sizeof(char *));
-	tokens->items[i] = (char *) malloc(strlen(item) + 1);
-	tokens->items[i + 1] = NULL;
-	strcpy(tokens->items[i], item);
-	tokens->size += 1;
-}
-
-char *get_input(void)
-{
-	char *buffer = NULL;
-	int bufsize = 0;
-
-	char line[5];
-	while (fgets(line, 5, stdin) != NULL) {
-		int addby = 0;
-		char *newln = strchr(line, '\n');
-		if (newln != NULL)
-			addby = newln - line;
-		else
-			addby = 5 - 1;
-
-		buffer = (char *) realloc(buffer, bufsize + addby);
-		memcpy(&buffer[bufsize], line, addby);
-		bufsize += addby;
-
-		if (newln != NULL)
-			break;
-	}
-
-	buffer = (char *) realloc(buffer, bufsize + 1);
-	buffer[bufsize] = 0;
-
-	return buffer;
-}
-
-tokenlist *get_tokens(char *input)
-{
-	char *buf = (char *) malloc(strlen(input) + 1);
-	strcpy(buf, input);
-
-	tokenlist *tokens = new_tokenlist();
-
-	char *tok = strtok(buf, " ");
-	while (tok != NULL) {
-		add_token(tokens, tok);
-		tok = strtok(NULL, " ");
-	}
-
-	free(buf);
-	return tokens;
-}
-
-void free_tokens(tokenlist *tokens)
-{
-	int i = 0;
-	for (i; i < tokens->size; i++)
-        free(tokens->items[i]);
-
-	free(tokens);
 }

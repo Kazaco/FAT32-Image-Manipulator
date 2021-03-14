@@ -12,6 +12,7 @@
 #include "Commands/mkdir.h"
 #include "Commands/open.h"
 #include "Commands/close.h"
+#include "Commands/mv.h"
 #include <stdio.h> 		//printf()
 #include <stdlib.h>     //free(), realloc()
 #include <string.h>     //strchr(), memcpy()
@@ -103,6 +104,10 @@ int main(int argc, char *argv[])
                 {
                     printf("Invalid Format: close <filename>\n");
                 }
+            }
+            else if(strcmp("mv", tokens->items[0]) == 0 && tokens->size == 3)
+            {
+                currentDirectory = MoveFileOrDirectory(imgFile, tokens, currentDirectory);
             }
             else
             {

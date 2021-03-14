@@ -64,6 +64,10 @@ int main(int argc, char *argv[])
             {
                 printList(imgFile, tokens, currentDirectory);
             }
+            else if(strcmp("cd", tokens->items[0]) == 0 && tokens->size == 2)
+            {
+                changeDirectory(imgFile, tokens, currentDirectory, openFiles);
+            }
         }
     }
     else

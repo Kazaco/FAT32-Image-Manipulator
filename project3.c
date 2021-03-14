@@ -4,36 +4,12 @@
 #include <fcntl.h>      //O_RDONLY
 #include <unistd.h>     //lseek
 
-typedef struct {
-    unsigned char FILE_Name[11];
-    unsigned int FILE_FstClus;
-    char FILE_Mode[3];
-    unsigned int FILE_OFFSET;
-    unsigned int FILE_SIZE;
-} FILEENTRY;
-
-typedef struct {
-	int size;
-	FILEENTRY **items;
-} filesList;
-
-
-////////////////////////////////////
-dirlist *new_dirlist(void);
-void free_dirlist(dirlist * directories);
-dirlist * getDirectoryList(const char * imgFile, unsigned int N);
-void readDirectories(dirlist * directories);
-int dirlistIndexOfFileOrDirectory(dirlist * directories, const char * item, int flag);
 ////////////////////////////////////
 filesList *new_filesList(void);
 void free_filesList(filesList * openFiles);
 int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist * tokens, int index);
 void readFilesList(filesList * openFiles);
 int filesListIndex(filesList * openFiles, const char * item);
-////////////////////////////////////
-char * littleEndianHexStringFromTokens(tokenlist * hex);
-char * littleEndianHexStringFromUnsignedChar(unsigned char * arr, int size);
-char * bigEndianHexString(tokenlist * hex);
 ////////////////////////////////////
 void createFile(const char * imgFile, const char * filename, dirlist * directories, unsigned int previousCluster, int flag);
 void intToASCIIStringWrite(const char * imgFile, int value, unsigned int DataSector, int begin, int size);

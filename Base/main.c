@@ -13,6 +13,8 @@
 #include "Commands/open.h"
 #include "Commands/close.h"
 #include "Commands/mv.h"
+#include "Commands/rm.h"
+#include "Commands/write.h"
 #include <stdio.h> 		//printf()
 #include <stdlib.h>     //free(), realloc()
 #include <string.h>     //strchr(), memcpy()
@@ -108,6 +110,14 @@ int main(int argc, char *argv[])
             else if(strcmp("mv", tokens->items[0]) == 0 && tokens->size == 3)
             {
                 currentDirectory = MoveFileOrDirectory(imgFile, tokens, currentDirectory);
+            }
+            else if(strcmp("rm", tokens->items[0]) == 0 && tokens->size == 2) 
+            {
+                currentDirectory = removeFile(imgFile, tokens, currentDirectory);
+            }
+            else if(strcmp("write", tokens->items[0]) == 0 && tokens->size >= 4)
+            {
+                writeToOpenFile(imgFile, tokens, currentDirectory, openFiles);
             }
             else
             {

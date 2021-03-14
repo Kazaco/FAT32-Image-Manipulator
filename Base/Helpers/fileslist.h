@@ -9,6 +9,7 @@ filesList * new_filesList();
 int createOpenFileEntry(filesList * openFiles, dirlist * directories, tokenlist * tokens, int index);
 void readFilesList(filesList * openFiles);
 int filesListIndex(filesList * openFiles, const char * item);
+int openFileIndex(filesList * files, tokenlist * tokens, int flag);
 void free_filesList(filesList * openFiles);
 
 #endif

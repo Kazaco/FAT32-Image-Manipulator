@@ -70,7 +70,7 @@ void readFilesList(filesList * openFiles)
     }
 }
 
-//Check if given char * is in our given files list
+//Check if given char * is already in our files list
 int filesListIndex(filesList * openFiles, const char * item)
 {
     int i = 0;
@@ -85,6 +85,53 @@ int filesListIndex(filesList * openFiles, const char * item)
         }
     }
     return found;
+}
+
+//Check if we are allowed to read, write, or both with our given file
+int openFileIndex(filesList * files, tokenlist * tokens, int flag)
+{
+    //Flag:
+    // 1 - READ
+    // 2 - WRITE
+    // 3 - READ OR WRITE
+
+    //Check if given char * is in our given directory
+    int i = 0;
+    int index = -1;
+    //Unlike in dirListIndex we don't need to extend the item string w/ spaces because
+    //I already cut them off when opening the file and inserting them into the filesList
+    for(i; i < files->size; i++)
+    {
+        //File was found in our list.
+        if(strncmp(files->items[i]->FILE_Name, tokens->items[1], strlen(tokens->items[1])) == 0)
+        {
+            //Check that the flags of the files->items permits what we are trying to do.
+
+            //Check if we are allowed to read the file
+            if( (flag == 1 || flag == 3) && (strcmp(files->items[i]->FILE_Mode, "r") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
+            || strcmp(files->items[i]->FILE_Mode, "wr") == 0) )
+            {
+                index = i;
+                return index;
+            }
+            //Check if we are allowed to write to the file
+            else if( (flag == 2 || flag == 3) && (strcmp(files->items[i]->FILE_Mode, "w") == 0 || strcmp(files->items[i]->FILE_Mode, "rw") == 0
+            || strcmp(files->items[i]->FILE_Mode, "wr") == 0) )
+            {
+                index = i;
+                return index;
+            }
+            else
+            {
+                //Invalid use of function.
+                printf("Filename given is not 'opened' for %s.\n", tokens->items[0]);
+                return -1;
+            }
+        }
+    }
+    //Return index of file/directory/empty if it is found. Val = -1 if not found.
+    printf("Filename given is not an 'open' file.\n");
+    return -1;
 }
 
 //Deallocate list of open files

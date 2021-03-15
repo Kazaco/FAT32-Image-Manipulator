@@ -41,9 +41,9 @@ int main(int argc, char *argv[])
         const char * imgFile = argv[1];
         //Make the User Start in the Root
         getBIOSParamBlock(imgFile);
-		dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
-		//Let the user have a container to interact w/ files no matter where they are in file system.
-		filesList * openFiles = new_filesList();
+	dirlist * currentDirectory = getDirectoryList(imgFile, BPB.RootClus);
+	//Let the user have a container to interact w/ files no matter where they are in file system.
+	filesList * openFiles = new_filesList();
 
         printf("=== FAT32 File System ===\n");
         printf("Type \"help\" for a list of all possible commands\n");

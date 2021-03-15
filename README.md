@@ -7,10 +7,11 @@
 | Karl Cooley | initial setup, exit, info, size, ls, creat, mkdir, open, close, write, debugging, and reformatted code. |
 | Ryan Goldberg | cd, mv, rm, cp, rmdir |
   
-## How to compile and run:  
+## How to compile and run (Unix):  
 ```
 Type "make" in the "Base" folder
-Type "./project3 fat32.img" to execute the program.  
+Type "./project3 fat32.img" to execute the program.
+Type "make clean" to delete all object files.
 ```
   
 ## Bugs/Noted Behaviors:

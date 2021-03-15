@@ -15,6 +15,11 @@
 #include "Commands/mv.h"
 #include "Commands/rm.h"
 #include "Commands/write.h"
+#include "Commands/read.h"
+#include "Commands/lseek.h"
+#include "Commands/cp.h"
+#include "Commands/rmdir.h"
+#include "Commands/help.h"
 #include <stdio.h> 		//printf()
 #include <stdlib.h>     //free(), realloc()
 #include <string.h>     //strchr(), memcpy()
@@ -41,6 +46,7 @@ int main(int argc, char *argv[])
 		filesList * openFiles = new_filesList();
 
         printf("=== FAT32 File System ===\n");
+        printf("Type \"help\" for a list of all possible commands\n");
         while(1)
         {
             //User Initial Input
@@ -118,6 +124,33 @@ int main(int argc, char *argv[])
             else if(strcmp("write", tokens->items[0]) == 0 && tokens->size >= 4)
             {
                 writeToOpenFile(imgFile, tokens, currentDirectory, openFiles);
+            }
+            else if(strcmp("read", tokens->items[0]) == 0)
+            {
+                readToOpenFile(imgFile, tokens, openFiles);
+            }
+            else if(strcmp("lseek", tokens->items[0]) == 0)
+            {
+                if(tokens->size == 1)
+                {
+                    readFilesList(openFiles);
+                }
+                else
+                {
+                    seekNewPositonInOpenFile(tokens, currentDirectory, openFiles);
+                }
+            }
+            else if(strcmp("cp", tokens->items[0]) == 0 && tokens->size >= 3)
+            {
+                currentDirectory = copyFile(imgFile, tokens, currentDirectory);
+            }
+            else if(strcmp("rmdir", tokens->items[0]) == 0 && tokens->size >= 2)
+            {
+                currentDirectory = removeDirectory(imgFile, tokens, currentDirectory);
+            }
+            else if(strcmp("help", tokens->items[0]) == 0 && tokens->size == 1)
+            {
+                printHelp();
             }
             else
             {

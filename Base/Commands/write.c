@@ -2,6 +2,7 @@
 #include "../Structs/bios.h"
 #include "../Helpers/utils.h"
 #include "../Helpers/directorylist.h"
+#include "../Helpers/fileslist.h"
 #include "../Helpers/fat.h"
 #include "../Helpers/parser.h"
 #include <stdio.h> 		//printf()
